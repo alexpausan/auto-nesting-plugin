@@ -1,0 +1,26 @@
+{
+  "manifest_version": 3,
+  "name": "Magic Plugin",
+  "version": "1.0",
+  "description": "A simple plugin that changes the background color of the current webpage",
+
+  "permissions": ["activeTab"],
+  "host_permissions": ["http://*/", "https://*/"],
+  "action": {
+    "default_icon": "images/icon128.png",
+    "default_title": "Magic Plugin",
+    "default_popup": "popup/popup.html"
+  },
+  "icons": {
+    "16": "images/icon16.png",
+    "48": "images/icon48.png",
+    "128": "images/icon128.png"
+  },
+  "content_scripts": [
+    {
+      "js": ["scripts/content.js"],
+      "matches": ["*://*/*"],
+      "run_at": "document_idle"
+    }
+  ]
+}
