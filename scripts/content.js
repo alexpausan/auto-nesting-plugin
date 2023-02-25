@@ -1,10 +1,9 @@
 // Parsing all the html
 
-setTimeout(getDOMData, 2000)
-
 const SPACE_UNIT = 4
 const ORIENTATION_THRESHOLD = 0.7
 const ALIGNMENT_TOLERANCE = 10
+
 
 const CONTAINER_TAGS = {
   BODY: true,
@@ -21,6 +20,9 @@ const CONTAINER_TAGS = {
   OL: true,
   UL: true,
   LI: true,
+  DL: true,
+  DT: true,
+  DD: true,
   SECTION: true,
   SUMMARY: true,
   TABLE: true,
@@ -31,18 +33,23 @@ const CONTAINER_TAGS = {
   THEAD: true,
   TR: true,
   ASIDE: true,
+  ARTICLE: true,
+  FIGURE: true,
+  FIELDSET: true,
+  FIGURE: true,
+  HGROUP: true,
 }
 
 const CONTENT_TAGS = {
+  A: true,
   P: true,
+  SPAN: true,
   H1: true,
   H2: true,
   H3: true,
   H4: true,
   H5: true,
   H6: true,
-  A: true,
-  SPAN: true,
   LABEL: true,
   STRONG: true,
   EM: true,
@@ -53,6 +60,19 @@ const CONTENT_TAGS = {
   INPUT: true,
   AUDIO: true,
   VIDEO: true,
+  I: true,
+  B: true,
+  U: true,
+  S: true,
+  EM: true,
+  STRONG: true,
+  ABBR: true,
+  ADDRESS: true,
+  PRE: true,
+  CODE: true,
+  SMALL: true,
+  BIG: true,
+  HR: true,
 }
 
 const MEDIA_TAGS = {
@@ -61,13 +81,9 @@ const MEDIA_TAGS = {
   svg: true,
   AUDIO: true,
   VIDEO: true,
-}
-
-const CONTENT_TYPE = {
-  EMPTY: 'EMPTY',
-  TEXT: 'TEXT',
-  TEXT_AND_TAGS: 'TEXT_AND_TAGS',
-  TAGS: 'TAGS',
+  CANVAS: true,
+  MAP: true,
+  PICTURE: true,
 }
 
 const ORIENTATION = {
@@ -90,12 +106,50 @@ const ORIENTATION_COLOR = {
   [ORIENTATION.NOT_ALIGNED]: 'black',
 }
 
+const STYLE_PROPERTIES = {
+  CONTAINER: [
+    'flex-direction',
+    'align-items',
+    'justify-content',
+    'flex-wrap',
+    'flex-basis',
+    'flex-grow',
+    'flex-shrink',
+    'grid-template-columns',
+    'grid-template-rows',
+    'background-color',
+    'background-image',
+    'gap',
+    'padding',
+    'margin',
+  ],
+  COMMON: ['position', 'display', 'align-self', 'border-width'],
+}
+
 const MUTATE_HTML = false
 
 let docHeight
 let docWidth
 
-let tree = {}
+let data = {}
+
+function sendDataToServer() {
+  fetch('http://localhost:3000/api/data/', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      data,
+    }),
+  })
+    .then((response) => {
+      console.log('Server response:', response)
+    })
+    .catch((error) => {
+      console.error('Error sending data to server:', error)
+    })
+}
 
 function getDOMData() {
   const t0 = performance.now()
@@ -104,106 +158,89 @@ function getDOMData() {
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
-  let result = getSimplifiedTree(body)
-  result = cleanContentNodes(result)
+  data = getTreeData(body)
+  // sendDataToServer(result)
+  // chrome.runtime.sendMessage(data)
 
-  console.log(result)
+  console.log(data)
+  console.log(JSON.stringify(data, null, 2))
 
   const t1 = performance.now()
   console.log(t1 - t0, 'milliseconds')
+
+  return data
 }
 
-function getSimplifiedTree(element) {
-  let { children, tagName: elTagName } = element
+function getTreeData(element) {
+  let { children, tagName } = element
 
-  // TODO move the classes from the removed elements to the kept element
+  const { top, left, width, height } = addOffsetToRect(element.getBoundingClientRect())
+
+  const result = {
+    // element,
+    el: tagName,
+    rect: { top, left, width, height },
+    styles: getCSSProperties(element, tagName),
+  }
+
+  if (tagName === 'INPUT') {
+    return {
+      ...result,
+      type: element.type,
+    }
+  }
+
+  if (!children?.length || tagName === 'svg') {
+    return result
+  }
+
+  if (CONTENT_TAGS[tagName] && children.length === 1 && isChildRedundant(element, children[0])) {
+    return {
+      ...result,
+      innerText: element?.innerText?.trim(),
+    }
+  }
+
   // Omit div in div, until we find a container with multiple children or we reach a content element
   children = getContainerWithMultipleChildrenOrContent(element)
 
   if (!children.length) {
-    return {
-      element,
-      children: null,
-    }
+    return result
   }
 
-  // Update the result with the new element and and make the children an array
-  const result = {
-    element,
-    children: [],
-  }
+  const orientation = getOrientation(children)
+
+  // Mark it for testing purposes
+  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+
+  result.orientation = orientation
+
+  result.children = []
 
   children.forEach((child) => {
-    result.children.push(getSimplifiedTree(child))
+    result.children.push(getTreeData(child))
   })
 
   return result
 }
 
-function cleanContentNodes(node) {
-  let { element, children } = node
-  const { tagName: elTagName } = element
+function getCSSProperties(element, tagName) {
+  const computedStyles = getComputedStyle(element)
+  const styles = {}
 
-  const result = {
-    element,
-    children: [],
+  let properties = STYLE_PROPERTIES.COMMON
+
+  // If element is container we add the container properties
+  if (CONTAINER_TAGS[tagName]) {
+    properties = properties.concat(STYLE_PROPERTIES.CONTAINER)
   }
 
-  if (elTagName === 'svg') {
-    result.children = children
-
-    return result
+  for (const property of properties) {
+    styles[property] = computedStyles.getPropertyValue(property)
   }
 
-  // In case we don't have any valid children, but the element has other HTML children
-  // We replace the children with the innerText of the element
-  if (!children?.length) {
-    // In case we have a
-    if (CONTENT_TAGS[elTagName] && element.innerText?.trim()) {
-      // element.innerHTML = `${element.innerText?.trim()}`
-    }
-
-    return {
-      ...result,
-      children: null,
-    }
-  }
-
-  if (CONTENT_TAGS[elTagName]) {
-    const childElement = children[0].element
-
-    if (children.length === 1 && isChildRedundant(element, childElement)) {
-      // element.innerHTML = `${childElement?.innerText?.trim()}`
-
-      return {
-        ...result,
-        children: null,
-      }
-    }
-
-    // In case the element is a Content tag with one or multiple children, we stop here
-    return {
-      ...result,
-      children,
-    }
-  }
-
-  // We add the orientation property to each container element
-  if (CONTAINER_TAGS[elTagName]) {
-    result.orientation = getOrientation(children)
-    // Mark it for testing purposes
-    element.style.outline = '4px solid ' + ORIENTATION_COLOR[result.orientation]
-    element.style.outlineOffset = result.orientation === ORIENTATION.ROW ? '-3px' : '0px'
-  }
-
-  children.forEach((child) => {
-    if (!child || !child.element) {
-      return
-    }
-    result.children.push(cleanContentNodes(child))
-  })
-
-  return result
+  return styles
 }
 
 function filterChildrenToCriteria(children) {
@@ -221,14 +258,13 @@ function filterChildrenToCriteria(children) {
     }
 
     // // Filter divs or other containers that are inside content tags
-    if (CONTENT_TAGS[parentTagName] && CONTAINER_TAGS[child.tagName]) {
-      // child.remove()
-      return
-    }
+    // if (CONTENT_TAGS[parentTagName] && CONTAINER_TAGS[child.tagName]) {
+    //   // child.remove()
+    //   return
+    // }
 
     // Filter any other type of element, except content or container tags
     if (!CONTAINER_TAGS[child.tagName] && !CONTENT_TAGS[child.tagName]) {
-      // child.remove()
       return
     }
     return true
@@ -260,7 +296,7 @@ function getOrientation(elementList) {
   }
 
   // If the parent element has flex or grid set on it, we can use those values
-  const parentElement = elementList[0].element.parentElement
+  const parentElement = elementList[0].parentElement
   const parentStyle = getComputedStyle(parentElement)
   const parentFlexDirection = parentStyle.getPropertyValue('flex-direction')
   const parentWrap = parentStyle.getPropertyValue('flex-wrap')
@@ -288,96 +324,14 @@ function getOrientation(elementList) {
     return ORIENTATION.GRID
   }
 
-  console.log('--- NOT ALIGNED---- ', elementList[0].element.parentElement)
+  console.log('--- NOT ALIGNED---- ', elementList[0].parentElement)
 
   return ORIENTATION.NOT_ALIGNED
-}
-// Will move the data
-function enrichData2(navs) {
-  const newData = navs.map((nav) => {
-    let { rect, input, ...rest } = nav
-
-    const deltaX1 = []
-    const deltaX2 = []
-    const deltaX3 = []
-    const deltaY1 = []
-    const deltaY2 = []
-    const deltaY3 = []
-    const deltaX1_Y1 = []
-    const deltaX1_Y2 = []
-    const deltaX1_Y3 = []
-    const deltaX2_Y1 = []
-    const deltaX2_Y2 = []
-    const deltaX2_Y3 = []
-    const deltaX3_Y1 = []
-    const deltaX3_Y2 = []
-    const deltaX3_Y3 = []
-
-    if (rect.length) {
-      rect.forEach((item) => {
-        // Change position on the X axis
-        let newX1 = item.x + getRandomInt(SPACE_UNIT)
-        let newX2 = item.x + getRandomInt(SPACE_UNIT * 0.75)
-        let newX3 = item.x + getRandomInt(SPACE_UNIT / 2)
-
-        // Change position on the Y axis
-        let newY1 = item.x + getRandomInt(SPACE_UNIT)
-        let newY2 = item.x + getRandomInt(SPACE_UNIT * 0.75)
-        let newY3 = item.x + getRandomInt(SPACE_UNIT / 2)
-
-        deltaX1.push({ ...item, x: newX1 })
-        deltaX2.push({ ...item, x: newX2 })
-        deltaX3.push({ ...item, x: newX3 })
-        deltaY1.push({ ...item, y: newY1 })
-        deltaY2.push({ ...item, y: newY1 })
-        deltaY3.push({ ...item, y: newY1 })
-        deltaX1_Y1.push({ ...item, x: newX1, y: newY1 })
-        deltaX1_Y2.push({ ...item, x: newX1, y: newY2 })
-        deltaX1_Y3.push({ ...item, x: newX1, y: newY3 })
-        deltaX2_Y1.push({ ...item, x: newX2, y: newY1 })
-        deltaX2_Y2.push({ ...item, x: newX2, y: newY2 })
-        deltaX2_Y3.push({ ...item, x: newX2, y: newY3 })
-        deltaX3_Y1.push({ ...item, x: newX3, y: newY1 })
-        deltaX3_Y2.push({ ...item, x: newX3, y: newY2 })
-        deltaX3_Y3.push({ ...item, x: newX3, y: newY3 })
-      })
-    }
-    input.push(JSON.stringify(deltaX1).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX2).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX3).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaY1).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaY2).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaY3).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX1_Y1).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX1_Y2).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX1_Y3).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX2_Y1).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX2_Y2).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX2_Y3).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX3_Y1).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX3_Y2).replace(REGEX.DOUBLE_QUOTES, ''))
-    input.push(JSON.stringify(deltaX3_Y3).replace(REGEX.DOUBLE_QUOTES, ''))
-
-    return {
-      ...rest,
-      input,
-      rect,
-    }
-  })
-
-  return newData
-}
-
-function getRandomInt(delta = SPACE_UNIT) {
-  const min = Math.ceil(-delta)
-  const max = Math.floor(delta)
-
-  return Math.floor(Math.random() * (max - min) + min)
 }
 
 function hasAbsolutePosition(element) {
   while (element && element !== document.body) {
-    let style = window.getComputedStyle(element)
+    let style = getComputedStyle(element)
     if (style.position === 'absolute') {
       return true
     }
@@ -389,7 +343,7 @@ function hasAbsolutePosition(element) {
 }
 
 function isNotVisible(element) {
-  const styles = window.getComputedStyle(element)
+  const styles = getComputedStyle(element)
   const rect = element.getBoundingClientRect()
   const offsetRect = addOffsetToRect(rect)
 
@@ -415,14 +369,12 @@ function isNotVisible(element) {
 
 function addOffsetToRect(rect) {
   return {
-    height: rect.height,
-    width: rect.width,
-    x: rect.x + window.pageXOffset,
-    y: rect.y + window.pageYOffset,
-    top: rect.top + window.pageYOffset,
-    bottom: rect.bottom + window.pageYOffset,
-    left: rect.left + window.pageXOffset,
-    right: rect.right + window.pageXOffset,
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top + window.pageYOffset),
+    left: Math.round(rect.left + window.pageXOffset),
+    bottom: Math.round(rect.bottom + window.pageYOffset),
+    right: Math.round(rect.right + window.pageXOffset),
   }
 }
 
@@ -435,23 +387,10 @@ function isChildRedundant(element, child = {}) {
   return false
 }
 
-function getRandomColor() {
-  let letters = '0123456789ABCDEF'
-  let color = '#'
-  for (let i = 0; i < 6; i++) {
-    color += letters[Math.floor(Math.random() * 16)]
-  }
-  return color
-}
-
-function hasBackgroundOrBorder(element) {
-  const styles = window.getComputedStyle(element)
-
-  const hasBorder = styles.borderStyle !== 'none'
-  const hasBackground =
-    styles.backgroundColor !== 'rgba(0, 0, 0, 0)' || styles.backgroundImage !== 'none'
-
-  return hasBorder || hasBackground
+function hasMediaElement(anchorTag) {
+  const innerHTML = anchorTag.innerHTML
+  const mediaRegex = /<audio|video|img|svg/gi
+  return mediaRegex.test(innerHTML)
 }
 
 function arrayHasDuplicates(arr) {
@@ -465,12 +404,6 @@ function arrayHasDuplicates(arr) {
   return false // no duplicates found
 }
 
-function hasMediaElement(anchorTag) {
-  const innerHTML = anchorTag.innerHTML
-  const mediaRegex = /<audio|video|img|svg/gi
-  return mediaRegex.test(innerHTML)
-}
-
 // We try to calculate the orientation based on elements' position
 function getOrientationBasedOnPosition(elementList, parentDisplay) {
   const topValues = []
@@ -482,7 +415,7 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   let allElementsAreInline = true
 
   for (let i = 0; i < elementList.length; i++) {
-    const currentEl = elementList[i].element
+    const currentEl = elementList[i]
     const rect = currentEl.getBoundingClientRect()
 
     const currentElStyle = getComputedStyle(currentEl)
@@ -536,7 +469,7 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   ) {
     // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
     if (parentDisplay === 'grid') {
-      console.log('GRID  ->>> ROW', elementList[0].element.parentElement)
+      console.log('GRID  ->>> ROW', elementList[0].parentElement)
       return ORIENTATION.ROW_WR
     }
 

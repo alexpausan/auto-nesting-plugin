@@ -3,11 +3,19 @@
   <head>
     <title>My Plugin</title>
   </head>
+  <link rel="stylesheet" href="popup.css" />
   <body>
-    <div>
-      <h1>My Plugin</h1>
-      <button id="change-color">Change Color</button>
+    <div class="content">
+      <h1>Magic Plugin</h1>
+
+      <div class="insert">
+        <!-- <button id="insert-content-script">Insert Script</button> -->
+        <button id="run-content-script">Run Script</button>
+      </div>
+      <div class="result"></div>
+      <button id="send-data">Send Result to API</button>
     </div>
+
     <script src="popup.js"></script>
   </body>
 </html>

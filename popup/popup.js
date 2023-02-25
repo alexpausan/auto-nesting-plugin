@@ -1,13 +1,44 @@
-// var bkg = chrome.extension.getBackgroundPage();
-// bkg.console.log('foo');
+// const insertScript = document.getElementById('insert-content-script')
+const runContentScriptButton = document.getElementById('run-content-script')
+const sendDataButton = document.getElementById('send-data')
+const resultDiv = document.getElementById('result')
 
-console.log('foo')
-// alert(123)
-function changeColor() {
-  console.log(1234)
-  // var color = document.getElementById("color").value;
-  // chrome.tabs.executeScript({ file: "getTree.js" });
-  // chrome.tabs.executeScript({code: "document.body.style.backgroundColor = '" + color + "';"});
-}
+// insertScript.addEventListener('click', function () {
+//   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+//     chrome.scripting
+//       .executeScript({
+//         target: { tabId: tabs[0].id },
+//         files: ['scripts/content.js'],
+//       })
+//       .then(() => {
+//         console.log('Content script injected')
+//       })
+//   })
+// })
 
-document.getElementById('change-color')?.addEventListener('click', changeColor)
+runContentScriptButton.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        getDOMData()
+      },
+    })
+  })
+})
+
+sendDataButton.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        sendDataToServer()
+      },
+    })
+  })
+})
+
+chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
+  // message contains the data sent from the content script
+  console.log(message.data)
+})
