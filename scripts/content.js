@@ -4,7 +4,6 @@ const SPACE_UNIT = 4
 const ORIENTATION_THRESHOLD = 0.7
 const ALIGNMENT_TOLERANCE = 10
 
-
 const CONTAINER_TAGS = {
   BODY: true,
   DIV: true,
@@ -54,6 +53,7 @@ const CONTENT_TAGS = {
   STRONG: true,
   EM: true,
   IMG: true,
+  PICTURE: true,
   SVG: true,
   svg: true,
   BUTTON: true,
@@ -73,6 +73,7 @@ const CONTENT_TAGS = {
   SMALL: true,
   BIG: true,
   HR: true,
+  TEXTAREA: true,
 }
 
 const MEDIA_TAGS = {
@@ -94,6 +95,16 @@ const ORIENTATION = {
   NOT_ALIGNED: 'NOT_ALIGNED',
   ROW_WR: 'ROW_WR',
   COL_WR: 'COL_WR',
+}
+
+const ORIENTATION_LABEL = {
+  [ORIENTATION.ROW]: 'Row',
+  [ORIENTATION.COL]: 'Col',
+  [ORIENTATION.GRID]: 'Grid',
+  [ORIENTATION.BLOCK_INLINE]: 'BI',
+  [ORIENTATION.NOT_ALIGNED]: 'NA',
+  [ORIENTATION.ROW_WR]: 'Row-wrap',
+  [ORIENTATION.COL_WR]: 'Col-wrap',
 }
 
 const ORIENTATION_COLOR = {
@@ -163,12 +174,229 @@ function getDOMData() {
   // chrome.runtime.sendMessage(data)
 
   console.log(data)
-  console.log(JSON.stringify(data, null, 2))
 
   const t1 = performance.now()
+
+  // console.log(JSON.stringify(data).length / 2)
+
+  const result = { prompt: '', response: '' }
+  // const contentNodes = buildPromptAndResponse({ node: data }, result)
+  const prompt = buildPrompt({ node: data })
+  const response = buildResponse(data)
+  const indContainers = buildIndividualContainersTrainingData(data)
+  console.log(Math.round(prompt.length / 2), Math.round(response.length / 2))
+
   console.log(t1 - t0, 'milliseconds')
+  // console.log(prompt.length)
+  // indContainers.forEach((indContainer) => {
+  //   console.log(indContainer.prompt)
+  //   console.log(indContainer.response)
+  // })
 
   return data
+}
+
+const LOWER_LIMIT = 40
+const UPPER_LIMIT = 500
+
+const buildIndividualContainersTrainingData = (node, level = 0) => {
+  const { el, rect, children, element, orientation } = node
+
+  let individualContainers = []
+
+  if (!children?.length || CONTENT_TAGS[el] || level > 5) {
+    return null
+  }
+
+  if (level > 0 && CONTAINER_TAGS[el]) {
+    // We normalize the individual container's position to the top left of current container
+    // And for first level children, we only adjust for the page's scroll position
+    const posAdjustment = {
+      leftAdj: level > 1 ? rect.left : 0,
+      topAdj: rect.top,
+    }
+
+    const result = {
+      prompt: buildPrompt({ node, posAdjustment }),
+      response: buildResponse(node, posAdjustment),
+    }
+
+    element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+    element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+
+    // console.log(element, rect)
+    // console.log(result.prompt.length, result.prompt)
+    // console.log(result.response.length, result.response)
+
+    // Only include 40-500 character prompts for individual containers
+    if (result.prompt.length > LOWER_LIMIT && result.prompt.length < UPPER_LIMIT) {
+      individualContainers.push(result)
+    }
+  }
+
+  level++
+  const containerData = children.map((child) => {
+    return buildIndividualContainersTrainingData(child, level)
+  })
+
+  return individualContainers.concat(...containerData.filter((data) => data !== null))
+}
+
+const buildResponse = (node, posAdjustment = {}) => {
+  const { el, rect, children, orientation } = node
+  const { leftAdj = 0, topAdj = 0 } = posAdjustment
+
+  const elType = CONTAINER_TAGS[el] ? ORIENTATION_LABEL[orientation] : TAG_CATEGORY[el]
+  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
+
+  let result = `[${elType} ${rectData}`
+
+  if (!children?.length || !orientation || orientation === ORIENTATION.NOT_ALIGNED) {
+    return `${result}]`
+  }
+
+  children.forEach((child) => {
+    result += buildResponse(child, posAdjustment)
+  })
+
+  return `${result}]`
+}
+
+const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
+
+let ID = 0
+
+const buildPrompt = (payload) => {
+  const { node, divPercentage = 0, includeContentChild = true, posAdjustment = {} } = payload
+  const { el, rect, children, orientation } = node
+  const { leftAdj = 0, topAdj = 0 } = posAdjustment
+
+  let result = ''
+
+  // Unsupported element, included in the crawl
+  if (el === 'BIG') {
+    return result
+  }
+
+  if (CONTENT_TAGS[el]) {
+    result += `[${TAG_CATEGORY[el]} x${rect.left - leftAdj} y${rect.top - topAdj}`
+    result += ` w${rect.width} h${rect.height}]`
+
+    // If the element is of type content, we may stop here - for data variation purposes
+    if (!includeContentChild) {
+      return result
+    }
+  }
+
+  if (CONTAINER_TAGS[el] && includeContainerInPrompt(divPercentage)) {
+    if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
+      return result
+    }
+
+    result = `[C x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}]`
+  }
+
+  if (!children?.length) {
+    return result
+  }
+
+  children.forEach((child) => {
+    result += buildPrompt({ ...payload, node: child })
+  })
+
+  return result
+}
+
+const buildPromptAndResponse = (payload, result, level = 0) => {
+  const { node, divPercentage = 0.2, includeContentChild = true, posAdjustment = {} } = payload
+  const { el, rect, children, orientation } = node
+  const { leftAdj = 0, topAdj = 0 } = posAdjustment
+
+  // let { prompt = '', response = '' } = result
+
+  // Unsupported element, included in the crawl
+
+  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
+
+  if (CONTENT_TAGS[el]) {
+    if (el === 'BIG') {
+      return
+    }
+
+    ID++
+    result.prompt += `[${TAG_CATEGORY[el]} ${rectData} ID${ID}]`
+    result.response += `[${TAG_CATEGORY[el]} ${rectData} ID${ID}]`
+
+    // If the element is of type content, we may stop here - for data variation purposes
+    if (!includeContentChild || !children?.length) {
+      return
+    }
+
+    children.forEach((child) => {
+      ID++
+      buildPromptAndResponse({ ...payload, node: child }, result)
+    })
+
+    return
+  }
+
+  // Otherwise is a container
+  if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
+    return
+  }
+
+  result.response += `[${ORIENTATION_LABEL[orientation]} ${rectData}`
+
+  if (includeContainerInPrompt(divPercentage)) {
+    ID++
+    result.prompt += `[${ORIENTATION_LABEL[orientation]} ${rectData} ID${ID}]`
+    result.response += ` ID${ID}`
+  }
+
+  if (!children?.length) {
+    result.response += `]`
+    return
+  }
+
+  children.forEach((child) => {
+    buildPromptAndResponse({ ...payload, node: child }, result)
+  })
+
+  result.response += `]`
+}
+
+const TAG_CATEGORY = {
+  A: 'A',
+  P: 'T',
+  SPAN: 'T',
+  H1: 'H',
+  H2: 'H',
+  H3: 'H',
+  H4: 'H',
+  H5: 'H',
+  H6: 'H',
+  LABEL: 'T',
+  STRONG: 'T',
+  ABBR: 'T',
+  ADDRESS: 'T',
+  PRE: 'T',
+  CODE: 'T',
+  SMALL: 'T',
+  I: 'T',
+  B: 'T',
+  U: 'T',
+  S: 'T',
+  EM: 'T',
+  IMG: 'I',
+  PICTURE: 'I',
+  SVG: 'I',
+  svg: 'I',
+  BUTTON: 'B',
+  INPUT: 'IN',
+  AUDIO: 'AU',
+  VIDEO: 'V',
+  HR: 'HR',
+  TEXTAREA: 'TA',
 }
 
 function getTreeData(element) {
@@ -177,10 +405,14 @@ function getTreeData(element) {
   const { top, left, width, height } = addOffsetToRect(element.getBoundingClientRect())
 
   const result = {
-    // element,
+    element,
     el: tagName,
     rect: { top, left, width, height },
     styles: getCSSProperties(element, tagName),
+  }
+
+  if (element.classList.contains('select')) {
+    console.log('select', element)
   }
 
   if (tagName === 'INPUT') {
@@ -211,16 +443,11 @@ function getTreeData(element) {
   const orientation = getOrientation(children)
 
   // Mark it for testing purposes
-  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
   result.orientation = orientation
-
-  result.children = []
-
-  children.forEach((child) => {
-    result.children.push(getTreeData(child))
-  })
+  result.children = children.map((child) => getTreeData(child))
 
   return result
 }
