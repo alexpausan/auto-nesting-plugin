@@ -3,19 +3,6 @@ const runContentScriptButton = document.getElementById('run-content-script')
 const sendDataButton = document.getElementById('send-data')
 const resultDiv = document.getElementById('result')
 
-// insertScript.addEventListener('click', function () {
-//   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-//     chrome.scripting
-//       .executeScript({
-//         target: { tabId: tabs[0].id },
-//         files: ['scripts/content.js'],
-//       })
-//       .then(() => {
-//         console.log('Content script injected')
-//       })
-//   })
-// })
-
 runContentScriptButton.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     chrome.scripting.executeScript({

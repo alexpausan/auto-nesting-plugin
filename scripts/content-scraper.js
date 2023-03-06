@@ -54,8 +54,6 @@ const CONTENT_TAGS = {
   EM: true,
   IMG: true,
   PICTURE: true,
-  SVG: true,
-  svg: true,
   BUTTON: true,
   INPUT: true,
   AUDIO: true,
@@ -74,17 +72,42 @@ const CONTENT_TAGS = {
   BIG: true,
   HR: true,
   TEXTAREA: true,
+  SELECT: true,
 }
 
-const MEDIA_TAGS = {
-  IMG: true,
-  SVG: true,
-  svg: true,
-  AUDIO: true,
-  VIDEO: true,
-  CANVAS: true,
-  MAP: true,
-  PICTURE: true,
+const TAG_CATEGORY = {
+  A: 'A',
+  P: 'Txt',
+  SPAN: 'Txt',
+  H1: 'H',
+  H2: 'H',
+  H3: 'H',
+  H4: 'H',
+  H5: 'H',
+  H6: 'H',
+  LABEL: 'Txt',
+  STRONG: 'Txt',
+  ABBR: 'Txt',
+  ADDRESS: 'Txt',
+  PRE: 'Txt',
+  CODE: 'Txt',
+  SMALL: 'Txt',
+  I: 'Txt',
+  B: 'Txt',
+  U: 'Txt',
+  S: 'Txt',
+  EM: 'Txt',
+  IMG: 'Img',
+  PICTURE: 'Img',
+  SVG: 'Img',
+  svg: 'Img',
+  BUTTON: 'Btn',
+  INPUT: 'Input',
+  SELECT: 'Input',
+  AUDIO: 'AU',
+  VIDEO: 'V',
+  HR: 'HR',
+  TEXTAREA: 'TA',
 }
 
 const ORIENTATION = {
@@ -101,7 +124,7 @@ const ORIENTATION_LABEL = {
   [ORIENTATION.ROW]: 'Row',
   [ORIENTATION.COL]: 'Col',
   [ORIENTATION.GRID]: 'Grid',
-  [ORIENTATION.BLOCK_INLINE]: 'BI',
+  [ORIENTATION.BLOCK_INLINE]: 'Inline',
   [ORIENTATION.NOT_ALIGNED]: 'NA',
   [ORIENTATION.ROW_WR]: 'Row-wrap',
   [ORIENTATION.COL_WR]: 'Col-wrap',
@@ -185,6 +208,9 @@ function getDOMData() {
   const response = buildResponse(data)
   const indContainers = buildIndividualContainersTrainingData(data)
   console.log(Math.round(prompt.length / 2), Math.round(response.length / 2))
+  console.log(JSON.stringify(data).length)
+  console.log(prompt)
+  console.log(response)
 
   console.log(t1 - t0, 'milliseconds')
   // console.log(prompt.length)
@@ -221,8 +247,8 @@ const buildIndividualContainersTrainingData = (node, level = 0) => {
       response: buildResponse(node, posAdjustment),
     }
 
-    element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-    element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+    // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+    // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
     // console.log(element, rect)
     // console.log(result.prompt.length, result.prompt)
@@ -249,6 +275,10 @@ const buildResponse = (node, posAdjustment = {}) => {
   const elType = CONTAINER_TAGS[el] ? ORIENTATION_LABEL[orientation] : TAG_CATEGORY[el]
   const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
 
+  if (elType === undefined || elType === 'NA') {
+    return ''
+  }
+
   let result = `[${elType} ${rectData}`
 
   if (!children?.length || !orientation || orientation === ORIENTATION.NOT_ALIGNED) {
@@ -272,15 +302,10 @@ const buildPrompt = (payload) => {
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
 
   let result = ''
-
-  // Unsupported element, included in the crawl
-  if (el === 'BIG') {
-    return result
-  }
+  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
 
   if (CONTENT_TAGS[el]) {
-    result += `[${TAG_CATEGORY[el]} x${rect.left - leftAdj} y${rect.top - topAdj}`
-    result += ` w${rect.width} h${rect.height}]`
+    result += `[${TAG_CATEGORY[el]} ${rectData}]`
 
     // If the element is of type content, we may stop here - for data variation purposes
     if (!includeContentChild) {
@@ -288,12 +313,14 @@ const buildPrompt = (payload) => {
     }
   }
 
-  if (CONTAINER_TAGS[el] && includeContainerInPrompt(divPercentage)) {
+  if (CONTAINER_TAGS[el]) {
     if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
       return result
     }
 
-    result = `[C x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}]`
+    if (includeContainerInPrompt(divPercentage)) {
+      result = `[${ORIENTATION_LABEL[orientation]} ${rectData}]`
+    }
   }
 
   if (!children?.length) {
@@ -365,40 +392,6 @@ const buildPromptAndResponse = (payload, result, level = 0) => {
   result.response += `]`
 }
 
-const TAG_CATEGORY = {
-  A: 'A',
-  P: 'T',
-  SPAN: 'T',
-  H1: 'H',
-  H2: 'H',
-  H3: 'H',
-  H4: 'H',
-  H5: 'H',
-  H6: 'H',
-  LABEL: 'T',
-  STRONG: 'T',
-  ABBR: 'T',
-  ADDRESS: 'T',
-  PRE: 'T',
-  CODE: 'T',
-  SMALL: 'T',
-  I: 'T',
-  B: 'T',
-  U: 'T',
-  S: 'T',
-  EM: 'T',
-  IMG: 'I',
-  PICTURE: 'I',
-  SVG: 'I',
-  svg: 'I',
-  BUTTON: 'B',
-  INPUT: 'IN',
-  AUDIO: 'AU',
-  VIDEO: 'V',
-  HR: 'HR',
-  TEXTAREA: 'TA',
-}
-
 function getTreeData(element) {
   let { children, tagName } = element
 
@@ -409,10 +402,6 @@ function getTreeData(element) {
     el: tagName,
     rect: { top, left, width, height },
     styles: getCSSProperties(element, tagName),
-  }
-
-  if (element.classList.contains('select')) {
-    console.log('select', element)
   }
 
   if (tagName === 'INPUT') {
@@ -443,11 +432,15 @@ function getTreeData(element) {
   const orientation = getOrientation(children)
 
   // Mark it for testing purposes
-  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
   result.orientation = orientation
-  result.children = children.map((child) => getTreeData(child))
+  result.children = []
+
+  children.forEach((child) => {
+    result.children.push(getTreeData(child))
+  })
 
   return result
 }
@@ -475,20 +468,12 @@ function filterChildrenToCriteria(children) {
 
   return children.filter((child) => {
     if (isNotVisible(child)) {
-      MUTATE_HTML && child.remove()
       return
     }
 
     if (hasAbsolutePosition(child)) {
-      MUTATE_HTML && child.remove()
       return
     }
-
-    // // Filter divs or other containers that are inside content tags
-    // if (CONTENT_TAGS[parentTagName] && CONTAINER_TAGS[child.tagName]) {
-    //   // child.remove()
-    //   return
-    // }
 
     // Filter any other type of element, except content or container tags
     if (!CONTAINER_TAGS[child.tagName] && !CONTENT_TAGS[child.tagName]) {
@@ -550,8 +535,7 @@ function getOrientation(elementList) {
   if (parentDisplay === 'grid') {
     return ORIENTATION.GRID
   }
-
-  console.log('--- NOT ALIGNED---- ', elementList[0].parentElement)
+  // console.log('--- NOT ALIGNED---- ', elementList[0].parentElement)
 
   return ORIENTATION.NOT_ALIGNED
 }
@@ -616,7 +600,7 @@ function isChildRedundant(element, child = {}) {
 
 function hasMediaElement(anchorTag) {
   const innerHTML = anchorTag.innerHTML
-  const mediaRegex = /<audio|video|img|svg/gi
+  const mediaRegex = /<audio|video|img|svg|picture|canvas|map/gi
   return mediaRegex.test(innerHTML)
 }
 
@@ -637,8 +621,8 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   const bottomValues = []
   const leftValues = []
   const rightValues = []
-  const hCenter = []
-  const vCenter = []
+  const horizontalPosOfCenter = []
+  const verticalPosOfCenter = []
   let allElementsAreInline = true
 
   for (let i = 0; i < elementList.length; i++) {
@@ -657,8 +641,8 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
     leftValues.push(rect.left)
     rightValues.push(rect.right)
 
-    hCenter.push(rect.left + rect.width / 2)
-    vCenter.push(rect.top + rect.height / 2)
+    horizontalPosOfCenter.push(rect.left + rect.width / 2)
+    verticalPosOfCenter.push(rect.top + rect.height / 2)
   }
 
   // We use the default sort method, and compare the nr
@@ -666,16 +650,16 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   bottomValues.sort((a, b) => a - b)
   leftValues.sort((a, b) => a - b)
   rightValues.sort((a, b) => a - b)
-  hCenter.sort((a, b) => a - b)
-  vCenter.sort((a, b) => a - b)
+  horizontalPosOfCenter.sort((a, b) => a - b)
+  verticalPosOfCenter.sort((a, b) => a - b)
 
   // Get the max difference in each case
   const topDiff = topValues[topValues.length - 1] - topValues[0]
   const bottomDiff = bottomValues[bottomValues.length - 1] - bottomValues[0]
   const leftDiff = leftValues[leftValues.length - 1] - leftValues[0]
   const rightDiff = rightValues[rightValues.length - 1] - rightValues[0]
-  const hDiff = hCenter[hCenter.length - 1] - hCenter[0]
-  const vDiff = vCenter[vCenter.length - 1] - vCenter[0]
+  const horDiff = horizontalPosOfCenter[horizontalPosOfCenter.length - 1] - horizontalPosOfCenter[0]
+  const verDiff = verticalPosOfCenter[verticalPosOfCenter.length - 1] - verticalPosOfCenter[0]
 
   // The first check for alignment is a basic one, checking if the diff is within the tolerance
   const horizontal = topDiff <= ALIGNMENT_TOLERANCE || bottomDiff <= ALIGNMENT_TOLERANCE
@@ -690,13 +674,12 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
 
   // Second check compares the deviation from center on the 2 axis
   if (
-    vDiff < hDiff * ORIENTATION_THRESHOLD &&
+    verDiff < horDiff * ORIENTATION_THRESHOLD &&
     !arrayHasDuplicates(leftValues) &&
     !arrayHasDuplicates(rightValues)
   ) {
     // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
     if (parentDisplay === 'grid') {
-      console.log('GRID  ->>> ROW', elementList[0].parentElement)
       return ORIENTATION.ROW_WR
     }
 
@@ -704,11 +687,16 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   }
 
   if (
-    vDiff * ORIENTATION_THRESHOLD > hDiff &&
+    verDiff * ORIENTATION_THRESHOLD > horDiff &&
     !arrayHasDuplicates(topValues) &&
     !arrayHasDuplicates(bottomValues)
   ) {
-    return ORIENTATION.COLUMN
+    // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
+    if (parentDisplay === 'grid') {
+      return ORIENTATION.COL_WR
+    }
+
+    return ORIENTATION.COL
   }
 
   // There are cases where multiple text elements are used inside a container, and they may not be aligned
