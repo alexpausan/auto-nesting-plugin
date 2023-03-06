@@ -103,11 +103,11 @@ const TAG_CATEGORY = {
   svg: 'Img',
   BUTTON: 'Btn',
   INPUT: 'Input',
+  TEXTAREA: 'Input',
   SELECT: 'Input',
-  AUDIO: 'AU',
-  VIDEO: 'V',
-  HR: 'HR',
-  TEXTAREA: 'TA',
+  AUDIO: 'Audio',
+  VIDEO: 'Video',
+  HR: 'Hr',
 }
 
 const ORIENTATION = {
@@ -119,6 +119,8 @@ const ORIENTATION = {
   ROW_WR: 'ROW_WR',
   COL_WR: 'COL_WR',
 }
+
+const DISPLAY_GRID = 'grid'
 
 const ORIENTATION_LABEL = {
   [ORIENTATION.ROW]: 'Row',
@@ -525,14 +527,14 @@ function getOrientation(elementList) {
   }
 
   // We try to calculate the orientation based on elements' position
-  const orientationBasedOnPosition = getOrientationBasedOnPosition(elementList, parentDisplay)
-  if (orientationBasedOnPosition !== ORIENTATION.NOT_ALIGNED) {
-    return orientationBasedOnPosition
+  const orientationFromPos = getOrientationBasedOnPosition(elementList, parentDisplay)
+  if (orientationFromPos && orientationFromPos !== ORIENTATION.NOT_ALIGNED) {
+    return orientationFromPos
   }
 
   // If the parent has grid display, and does not fit a row or column pattern, we return grid
   // TO DO: experiment with returning grid earlier ->before the orientation based on position
-  if (parentDisplay === 'grid') {
+  if (parentDisplay === DISPLAY_GRID) {
     return ORIENTATION.GRID
   }
   // console.log('--- NOT ALIGNED---- ', elementList[0].parentElement)
@@ -679,7 +681,7 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
     !arrayHasDuplicates(rightValues)
   ) {
     // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
-    if (parentDisplay === 'grid') {
+    if (parentDisplay === DISPLAY_GRID) {
       return ORIENTATION.ROW_WR
     }
 
@@ -692,7 +694,7 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
     !arrayHasDuplicates(bottomValues)
   ) {
     // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
-    if (parentDisplay === 'grid') {
+    if (parentDisplay === DISPLAY_GRID) {
       return ORIENTATION.COL_WR
     }
 
