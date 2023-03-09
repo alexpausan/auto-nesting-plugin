@@ -75,39 +75,39 @@ const CONTENT_TAGS = {
   SELECT: true,
 }
 
-const TAG_CATEGORY = {
-  A: 'A',
-  P: 'Txt',
-  SPAN: 'Txt',
-  H1: 'H',
-  H2: 'H',
-  H3: 'H',
-  H4: 'H',
-  H5: 'H',
-  H6: 'H',
-  LABEL: 'Txt',
-  STRONG: 'Txt',
-  ABBR: 'Txt',
-  ADDRESS: 'Txt',
-  PRE: 'Txt',
-  CODE: 'Txt',
-  SMALL: 'Txt',
-  I: 'Txt',
-  B: 'Txt',
-  U: 'Txt',
-  S: 'Txt',
-  EM: 'Txt',
-  IMG: 'Img',
-  PICTURE: 'Img',
-  SVG: 'Img',
-  svg: 'Img',
-  BUTTON: 'Btn',
-  INPUT: 'Input',
-  TEXTAREA: 'Input',
-  SELECT: 'Input',
-  AUDIO: 'Audio',
-  VIDEO: 'Video',
-  HR: 'Hr',
+const CONTENT_TAG_LABEL = {
+  A: 'link',
+  P: 'text',
+  SPAN: 'text',
+  H1: 'heading',
+  H2: 'heading',
+  H3: 'heading',
+  H4: 'heading',
+  H5: 'heading',
+  H6: 'heading',
+  LABEL: 'text',
+  STRONG: 'text',
+  ABBR: 'text',
+  ADDRESS: 'text',
+  PRE: 'text',
+  CODE: 'text',
+  SMALL: 'text',
+  I: 'text',
+  B: 'text',
+  U: 'text',
+  S: 'text',
+  EM: 'text',
+  IMG: 'img',
+  PICTURE: 'img',
+  SVG: 'img',
+  svg: 'img',
+  BUTTON: 'button',
+  INPUT: 'input',
+  TEXTAREA: 'input',
+  SELECT: 'input',
+  AUDIO: 'audio',
+  VIDEO: 'video',
+  HR: 'hr',
 }
 
 const ORIENTATION = {
@@ -123,13 +123,13 @@ const ORIENTATION = {
 const DISPLAY_GRID = 'grid'
 
 const ORIENTATION_LABEL = {
-  [ORIENTATION.ROW]: 'Row',
-  [ORIENTATION.COL]: 'Col',
-  [ORIENTATION.GRID]: 'Grid',
-  [ORIENTATION.BLOCK_INLINE]: 'Inline',
+  [ORIENTATION.ROW]: 'row',
+  [ORIENTATION.COL]: 'col',
+  [ORIENTATION.GRID]: 'grid',
+  [ORIENTATION.BLOCK_INLINE]: 'inline',
   [ORIENTATION.NOT_ALIGNED]: 'NA',
-  [ORIENTATION.ROW_WR]: 'Row-wrap',
-  [ORIENTATION.COL_WR]: 'Col-wrap',
+  [ORIENTATION.ROW_WR]: 'row-wrap',
+  [ORIENTATION.COL_WR]: 'col-wrap',
 }
 
 const ORIENTATION_COLOR = {
@@ -159,33 +159,22 @@ const STYLE_PROPERTIES = {
     'padding',
     'margin',
   ],
-  COMMON: ['position', 'display', 'align-self', 'border-width'],
+  COMMON: ['position', 'display', 'align-self', 'border-width', 'font-size'],
 }
 
-const MUTATE_HTML = false
+const MIN_CHARS = 40
+const MAX_CHARS = 4000
+
+const CHILD_LEVELS_TO_COVER = 3
+const DIV_PERCENTAGE = 0.3
+
+const NO_DATA = ''
+
+const GPT_END_OF_PROMPT = '\n\n###\n\n'
+const GPT_END_OF_COMPLETION = 'END'
 
 let docHeight
 let docWidth
-
-let data = {}
-
-function sendDataToServer() {
-  fetch('http://localhost:3000/api/data/', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      data,
-    }),
-  })
-    .then((response) => {
-      console.log('Server response:', response)
-    })
-    .catch((error) => {
-      console.error('Error sending data to server:', error)
-    })
-}
 
 function getDOMData() {
   const t0 = performance.now()
@@ -194,204 +183,184 @@ function getDOMData() {
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
-  data = getTreeData(body)
-  // sendDataToServer(result)
-  // chrome.runtime.sendMessage(data)
+  treeData = getTreeData(body)
+  console.log(treeData)
 
-  console.log(data)
+  let trainingData = []
+  let trainingSet
 
+  for (let i = 0; i < 3; i++) {
+    // For every second element we get data for each container X levels deep
+    if ((i + 1) % 2 === 0) {
+      trainingSet = buildTrainingData(treeData, CHILD_LEVELS_TO_COVER)
+      trainingData = trainingData.concat(trainingSet)
+      console.log(trainingSet)
+    } else {
+      trainingSet = buildTrainingData(treeData)
+      trainingData = trainingData.concat(trainingSet)
+    }
+  }
+
+  console.log(trainingData)
   const t1 = performance.now()
-
-  // console.log(JSON.stringify(data).length / 2)
-
-  const result = { prompt: '', response: '' }
-  // const contentNodes = buildPromptAndResponse({ node: data }, result)
-  const prompt = buildPrompt({ node: data })
-  const response = buildResponse(data)
-  const indContainers = buildIndividualContainersTrainingData(data)
-  console.log(Math.round(prompt.length / 2), Math.round(response.length / 2))
-  console.log(JSON.stringify(data).length)
-  console.log(prompt)
-  console.log(response)
+  console.log(NoInclude, Include)
 
   console.log(t1 - t0, 'milliseconds')
-  // console.log(prompt.length)
-  // indContainers.forEach((indContainer) => {
-  //   console.log(indContainer.prompt)
-  //   console.log(indContainer.response)
-  // })
 
-  return data
+  return trainingData
 }
 
-const LOWER_LIMIT = 40
-const UPPER_LIMIT = 500
+const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
+  const { tagName, rect, children, orientation = ORIENTATION.NOT_ALIGNED, element } = node
 
-const buildIndividualContainersTrainingData = (node, level = 0) => {
-  const { el, rect, children, element, orientation } = node
+  let prompt = ''
+  let completion = ''
 
-  let individualContainers = []
+  // In this case we only return the trainig data for the body / root node
+  if (levelsToCover === 0) {
+    prompt = buildPrompt({ node })
+    completion = buildCompletion({ node })
 
-  if (!children?.length || CONTENT_TAGS[el] || level > 5) {
+    // If the prompt is too long or the body is not aligned, we get data for each container X levels deep
+    if (prompt.length + completion.length > MAX_CHARS || orientation === ORIENTATION.NOT_ALIGNED) {
+      return buildTrainingData(node, CHILD_LEVELS_TO_COVER)
+    }
+
+    return [{ prompt, completion }]
+  }
+
+  if (!children?.length || CONTENT_TAGS[tagName]) {
     return null
   }
 
-  if (level > 0 && CONTAINER_TAGS[el]) {
-    // We normalize the individual container's position to the top left of current container
-    // And for first level children, we only adjust for the page's scroll position
-    const posAdjustment = {
-      leftAdj: level > 1 ? rect.left : 0,
-      topAdj: rect.top,
+  let trainingSet = []
+
+  // We normalize the individual container's position to the top left of the page half of the time
+  // And for first level children, we only adjust for the page's scroll position half of the time
+  const adjustPosition = adjustPositionToPageStart()
+  const posAdjustment = {
+    leftAdj: currentLevel > 1 && adjustPosition ? rect.left : 0,
+    topAdj: currentLevel > 0 && adjustPosition ? rect.top : 0,
+  }
+
+  const includeContentChild = includeChildrenOfContentEl()
+
+  // We only get data for divs that are aligned
+  if (orientation !== ORIENTATION.NOT_ALIGNED) {
+    prompt = buildPrompt({
+      node,
+      posAdjustment,
+      includeContentChild,
+      divPercentage: DIV_PERCENTAGE,
+    })
+    completion = buildCompletion({ node, posAdjustment, includeContentChild })
+
+    // We only include the data if the prompt and completion are not too long
+    if (prompt?.length > MIN_CHARS && prompt?.length + completion?.length < MAX_CHARS) {
+      trainingSet.push({ prompt, completion })
     }
 
-    const result = {
-      prompt: buildPrompt({ node, posAdjustment }),
-      response: buildResponse(node, posAdjustment),
-    }
-
-    // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-    // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
-
-    // console.log(element, rect)
-    // console.log(result.prompt.length, result.prompt)
-    // console.log(result.response.length, result.response)
-
-    // Only include 40-500 character prompts for individual containers
-    if (result.prompt.length > LOWER_LIMIT && result.prompt.length < UPPER_LIMIT) {
-      individualContainers.push(result)
+    // If we have a prompt too short we don't include it, and we don't visit the children either
+    if (prompt?.length < MIN_CHARS || completion?.length < MIN_CHARS) {
+      return null
     }
   }
 
-  level++
-  const containerData = children.map((child) => {
-    return buildIndividualContainersTrainingData(child, level)
-  })
+  currentLevel++
 
-  return individualContainers.concat(...containerData.filter((data) => data !== null))
+  if (currentLevel <= levelsToCover) {
+    const childrenTrainingSet = children.map((child) => {
+      return buildTrainingData(child, levelsToCover, currentLevel)
+    })
+
+    trainingSet = trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+  }
+
+  return trainingSet
 }
 
-const buildResponse = (node, posAdjustment = {}) => {
-  const { el, rect, children, orientation } = node
-  const { leftAdj = 0, topAdj = 0 } = posAdjustment
+const buildCompletion = (props) => {
+  const { node, includeContentChild = true, posAdjustment } = props
+  const { tagName, children } = node
 
-  const elType = CONTAINER_TAGS[el] ? ORIENTATION_LABEL[orientation] : TAG_CATEGORY[el]
-  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
+  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-  if (elType === undefined || elType === 'NA') {
-    return ''
+  if (!elType || elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+    return NO_DATA
   }
 
   let result = `[${elType} ${rectData}`
 
-  if (!children?.length || !orientation || orientation === ORIENTATION.NOT_ALIGNED) {
+  if (CONTENT_TAGS[tagName] && !includeContentChild) {
+    return `${result}]`
+  }
+
+  if (!children?.length) {
     return `${result}]`
   }
 
   children.forEach((child) => {
-    result += buildResponse(child, posAdjustment)
+    result += buildCompletion({ ...props, node: child })
   })
 
   return `${result}]`
 }
+let NoInclude = 0
+let Include = 0
 
-const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
+const buildPrompt = (props) => {
+  const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
+  const { tagName, children } = node
 
-let ID = 0
+  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-const buildPrompt = (payload) => {
-  const { node, divPercentage = 0, includeContentChild = true, posAdjustment = {} } = payload
-  const { el, rect, children, orientation } = node
-  const { leftAdj = 0, topAdj = 0 } = posAdjustment
-
-  let result = ''
-  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
-
-  if (CONTENT_TAGS[el]) {
-    result += `[${TAG_CATEGORY[el]} ${rectData}]`
-
-    // If the element is of type content, we may stop here - for data variation purposes
-    if (!includeContentChild) {
-      return result
-    }
+  if (!elType || elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+    return NO_DATA
   }
 
-  if (CONTAINER_TAGS[el]) {
-    if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
-      return result
-    }
+  let result = `[${elType} ${rectData}]`
 
-    if (includeContainerInPrompt(divPercentage)) {
-      result = `[${ORIENTATION_LABEL[orientation]} ${rectData}]`
-    }
+  if (CONTENT_TAGS[tagName] && !includeContentChild) {
+    return result
   }
 
   if (!children?.length) {
     return result
   }
 
+  if (CONTAINER_TAGS[tagName] && !includeContainerInPrompt(divPercentage)) {
+    result = NO_DATA
+    NoInclude++
+  } else if (CONTAINER_TAGS[tagName]) {
+    Include++
+  }
+
   children.forEach((child) => {
-    result += buildPrompt({ ...payload, node: child })
+    result += buildPrompt({ ...props, node: child })
   })
 
   return result
 }
 
-const buildPromptAndResponse = (payload, result, level = 0) => {
-  const { node, divPercentage = 0.2, includeContentChild = true, posAdjustment = {} } = payload
-  const { el, rect, children, orientation } = node
+const POS_ADJUSTMENT_PERCENTAGE = 0.5
+const adjustPositionToPageStart = () => Math.random() <= POS_ADJUSTMENT_PERCENTAGE
+
+const INCLUDE_CONTENT_CHILD = 0.7
+const includeChildrenOfContentEl = () => Math.random() <= INCLUDE_CONTENT_CHILD
+
+const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
+
+const getElTypeAndRectData = (node, posAdjustment = {}) => {
+  const { tagName: tag, rect, orientation } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
 
-  // let { prompt = '', response = '' } = result
-
-  // Unsupported element, included in the crawl
-
+  const elType = CONTAINER_TAGS[tag] ? ORIENTATION_LABEL[orientation] : CONTENT_TAG_LABEL[tag]
   const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
 
-  if (CONTENT_TAGS[el]) {
-    if (el === 'BIG') {
-      return
-    }
-
-    ID++
-    result.prompt += `[${TAG_CATEGORY[el]} ${rectData} ID${ID}]`
-    result.response += `[${TAG_CATEGORY[el]} ${rectData} ID${ID}]`
-
-    // If the element is of type content, we may stop here - for data variation purposes
-    if (!includeContentChild || !children?.length) {
-      return
-    }
-
-    children.forEach((child) => {
-      ID++
-      buildPromptAndResponse({ ...payload, node: child }, result)
-    })
-
-    return
+  return {
+    elType,
+    rectData,
   }
-
-  // Otherwise is a container
-  if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
-    return
-  }
-
-  result.response += `[${ORIENTATION_LABEL[orientation]} ${rectData}`
-
-  if (includeContainerInPrompt(divPercentage)) {
-    ID++
-    result.prompt += `[${ORIENTATION_LABEL[orientation]} ${rectData} ID${ID}]`
-    result.response += ` ID${ID}`
-  }
-
-  if (!children?.length) {
-    result.response += `]`
-    return
-  }
-
-  children.forEach((child) => {
-    buildPromptAndResponse({ ...payload, node: child }, result)
-  })
-
-  result.response += `]`
 }
 
 function getTreeData(element) {
@@ -401,7 +370,7 @@ function getTreeData(element) {
 
   const result = {
     element,
-    el: tagName,
+    tagName: tagName,
     rect: { top, left, width, height },
     styles: getCSSProperties(element, tagName),
   }
@@ -413,29 +382,26 @@ function getTreeData(element) {
     }
   }
 
-  if (!children?.length || tagName === 'svg') {
+  if (tagName === 'svg' || tagName === 'SELECT') {
     return result
   }
 
-  if (CONTENT_TAGS[tagName] && children.length === 1 && isChildRedundant(element, children[0])) {
-    return {
-      ...result,
-      innerText: element?.innerText?.trim(),
-    }
+  if (CONTENT_TAGS[tagName] && children?.length === 1 && isChildRedundant(element, children[0])) {
+    return result
   }
 
   // Omit div in div, until we find a container with multiple children or we reach a content element
   children = getContainerWithMultipleChildrenOrContent(element)
 
-  if (!children.length) {
+  if (!children?.length) {
     return result
   }
 
   const orientation = getOrientation(children)
 
   // Mark it for testing purposes
-  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
   result.orientation = orientation
   result.children = []
