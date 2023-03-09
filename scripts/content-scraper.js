@@ -128,8 +128,8 @@ const ORIENTATION_LABEL = {
   [ORIENTATION.GRID]: 'grid',
   [ORIENTATION.BLOCK_INLINE]: 'inline',
   [ORIENTATION.NOT_ALIGNED]: 'NA',
-  [ORIENTATION.ROW_WR]: 'row-wrap',
-  [ORIENTATION.COL_WR]: 'col-wrap',
+  [ORIENTATION.ROW_WR]: 'rw',
+  [ORIENTATION.COL_WR]: 'cw',
 }
 
 const ORIENTATION_COLOR = {
@@ -162,10 +162,10 @@ const STYLE_PROPERTIES = {
   COMMON: ['position', 'display', 'align-self', 'border-width', 'font-size'],
 }
 
-const MIN_CHARS = 40
+const MIN_CHARS = 50
 const MAX_CHARS = 4000
 
-const CHILD_LEVELS_TO_COVER = 3
+const CHILD_LEVELS_TO_COVER = 2
 const DIV_PERCENTAGE = 0.3
 
 const NO_DATA = ''
@@ -186,24 +186,13 @@ function getDOMData() {
   treeData = getTreeData(body)
   console.log(treeData)
 
-  let trainingData = []
-  let trainingSet
+  let trainingData
 
-  for (let i = 0; i < 3; i++) {
-    // For every second element we get data for each container X levels deep
-    if ((i + 1) % 2 === 0) {
-      trainingSet = buildTrainingData(treeData, CHILD_LEVELS_TO_COVER)
-      trainingData = trainingData.concat(trainingSet)
-      console.log(trainingSet)
-    } else {
-      trainingSet = buildTrainingData(treeData)
-      trainingData = trainingData.concat(trainingSet)
-    }
-  }
+  trainingData = buildTrainingData(treeData)
+  trainingData = enrichData(trainingData)
 
   console.log(trainingData)
   const t1 = performance.now()
-  console.log(NoInclude, Include)
 
   console.log(t1 - t0, 'milliseconds')
 
@@ -213,13 +202,16 @@ function getDOMData() {
 const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
   const { tagName, rect, children, orientation = ORIENTATION.NOT_ALIGNED, element } = node
 
-  let prompt = ''
-  let completion = ''
+  let prompt
+  let completion
 
   // In this case we only return the trainig data for the body / root node
   if (levelsToCover === 0) {
     prompt = buildPrompt({ node })
+    prompt += ` ${GPT_END_OF_PROMPT}`
+
     completion = buildCompletion({ node })
+    completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
     // If the prompt is too long or the body is not aligned, we get data for each container X levels deep
     if (prompt.length + completion.length > MAX_CHARS || orientation === ORIENTATION.NOT_ALIGNED) {
@@ -247,13 +239,13 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
 
   // We only get data for divs that are aligned
   if (orientation !== ORIENTATION.NOT_ALIGNED) {
-    prompt = buildPrompt({
-      node,
-      posAdjustment,
-      includeContentChild,
-      divPercentage: DIV_PERCENTAGE,
-    })
+    const divPercentage = DIV_PERCENTAGE
+
+    prompt = buildPrompt({ node, posAdjustment, includeContentChild, divPercentage })
+    prompt += ` ${GPT_END_OF_PROMPT}`
+
     completion = buildCompletion({ node, posAdjustment, includeContentChild })
+    completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
     // We only include the data if the prompt and completion are not too long
     if (prompt?.length > MIN_CHARS && prompt?.length + completion?.length < MAX_CHARS) {
@@ -305,8 +297,6 @@ const buildCompletion = (props) => {
 
   return `${result}]`
 }
-let NoInclude = 0
-let Include = 0
 
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
@@ -328,11 +318,9 @@ const buildPrompt = (props) => {
     return result
   }
 
+  // We include some containers in the prompt, for data variation
   if (CONTAINER_TAGS[tagName] && !includeContainerInPrompt(divPercentage)) {
     result = NO_DATA
-    NoInclude++
-  } else if (CONTAINER_TAGS[tagName]) {
-    Include++
   }
 
   children.forEach((child) => {
@@ -673,4 +661,31 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   }
 
   return ORIENTATION.NOT_ALIGNED
+}
+
+function getRandomInt(delta = SPACE_UNIT) {
+  const min = Math.ceil(-delta)
+  const max = Math.floor(delta)
+
+  return Math.floor(Math.random() * (max - min) + min)
+}
+
+function getNewCoordinate(coordinate) {
+  const delta = getRandomInt()
+  return coordinate + delta < 0 ? 0 : coordinate + delta
+}
+
+function enrichData(trainingData) {
+  const enrichedData = []
+
+  for (let i = 0; i < trainingData.length; i++) {
+    let { prompt, completion } = trainingData[i]
+
+    prompt = prompt.replace(/x(\d+)/g, (match, p1) => `x${getNewCoordinate(parseInt(p1))}`)
+    prompt = prompt.replace(/y(\d+)/g, (match, p1) => `y${getNewCoordinate(parseInt(p1))}`)
+
+    enrichedData[i] = { prompt, completion }
+  }
+
+  return trainingData.concat(enrichedData)
 }
