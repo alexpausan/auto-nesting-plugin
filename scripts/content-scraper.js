@@ -120,6 +120,8 @@ const ORIENTATION = {
   COL_WR: 'COL_WR',
 }
 
+const PROXY_DIV = 'proxy'
+
 const DISPLAY_GRID = 'grid'
 
 const ORIENTATION_LABEL = {
@@ -170,7 +172,7 @@ const DIV_PERCENTAGE = 0.3
 
 const NO_DATA = ''
 
-const GPT_END_OF_PROMPT = '\n\n###\n\n'
+const GPT_END_OF_PROMPT = '###'
 const GPT_END_OF_COMPLETION = 'END'
 
 let docHeight
@@ -186,9 +188,7 @@ function getDOMData() {
   treeData = getTreeData(body)
   console.log(treeData)
 
-  let trainingData
-
-  trainingData = buildTrainingData(treeData)
+  let trainingData = buildTrainingData(treeData)
   trainingData = enrichData(trainingData)
 
   console.log(trainingData)
@@ -204,8 +204,14 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
 
   let prompt
   let completion
+  let completionToPromptRatio
 
-  // In this case we only return the trainig data for the body / root node
+  // If the node is not aligned, we default to going for multiple levels down for individual containers
+  if (orientation === ORIENTATION.NOT_ALIGNED) {
+    levelsToCover = CHILD_LEVELS_TO_COVER
+  }
+
+  // First try is to get the trainig data for the body / root node
   if (levelsToCover === 0) {
     prompt = buildPrompt({ node })
     prompt += ` ${GPT_END_OF_PROMPT}`
@@ -213,12 +219,12 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
     completion = buildCompletion({ node })
     completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
-    // If the prompt is too long or the body is not aligned, we get data for each container X levels deep
-    if (prompt.length + completion.length > MAX_CHARS || orientation === ORIENTATION.NOT_ALIGNED) {
-      return buildTrainingData(node, CHILD_LEVELS_TO_COVER)
+    if (prompt.length + completion.length < MAX_CHARS) {
+      return [{ prompt, completion }]
     }
 
-    return [{ prompt, completion }]
+    // If the prompt is too long we get data for each container X levels deep
+    return buildTrainingData(node, CHILD_LEVELS_TO_COVER)
   }
 
   if (!children?.length || CONTENT_TAGS[tagName]) {
@@ -232,7 +238,10 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
   const adjustPosition = adjustPositionToPageStart()
   const posAdjustment = {
     leftAdj: currentLevel > 1 && adjustPosition ? rect.left : 0,
-    topAdj: currentLevel > 0 && adjustPosition ? rect.top : 0,
+    topAdj:
+      (currentLevel > 0 && adjustPosition) || rect.top > MAX_PAGE_SCROLL_WITHOUT_OFFSET
+        ? rect.top
+        : 0,
   }
 
   const includeContentChild = includeChildrenOfContentEl()
@@ -271,40 +280,13 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
   return trainingSet
 }
 
-const buildCompletion = (props) => {
-  const { node, includeContentChild = true, posAdjustment } = props
-  const { tagName, children } = node
-
-  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
-
-  if (!elType || elType === ORIENTATION_LABEL.NOT_ALIGNED) {
-    return NO_DATA
-  }
-
-  let result = `[${elType} ${rectData}`
-
-  if (CONTENT_TAGS[tagName] && !includeContentChild) {
-    return `${result}]`
-  }
-
-  if (!children?.length) {
-    return `${result}]`
-  }
-
-  children.forEach((child) => {
-    result += buildCompletion({ ...props, node: child })
-  })
-
-  return `${result}]`
-}
-
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
   const { tagName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-  if (!elType || elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+  if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
     return NO_DATA
   }
 
@@ -330,11 +312,43 @@ const buildPrompt = (props) => {
   return result
 }
 
+const buildCompletion = (props) => {
+  const { node, includeContentChild = true, posAdjustment } = props
+  const { tagName, children } = node
+
+  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
+
+  if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+    return NO_DATA
+  }
+
+  let result = `[${elType}`
+
+  // For any type of element that is a leaf, we include the rect data
+  if (!children?.length) {
+    return `${result} ${rectData}]`
+  }
+
+  result += CONTENT_TAGS[tagName] ? ` ${rectData}` : ''
+
+  if (CONTENT_TAGS[tagName] && !includeContentChild) {
+    return `${result}]`
+  }
+
+  children.forEach((child) => {
+    result += buildCompletion({ ...props, node: child })
+  })
+
+  return `${result}]`
+}
+
 const POS_ADJUSTMENT_PERCENTAGE = 0.5
+const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 7500
+
 const adjustPositionToPageStart = () => Math.random() <= POS_ADJUSTMENT_PERCENTAGE
 
-const INCLUDE_CONTENT_CHILD = 0.7
-const includeChildrenOfContentEl = () => Math.random() <= INCLUDE_CONTENT_CHILD
+const INCLUDED_CONTENT_CHILD = 0.7
+const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
 const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
 
@@ -342,7 +356,12 @@ const getElTypeAndRectData = (node, posAdjustment = {}) => {
   const { tagName: tag, rect, orientation } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
 
-  const elType = CONTAINER_TAGS[tag] ? ORIENTATION_LABEL[orientation] : CONTENT_TAG_LABEL[tag]
+  const elType = CONTAINER_TAGS[tag]
+    ? orientation
+      ? ORIENTATION_LABEL[orientation]
+      : PROXY_DIV
+    : CONTENT_TAG_LABEL[tag]
+
   const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
 
   return {
@@ -384,12 +403,11 @@ function getTreeData(element) {
   if (!children?.length) {
     return result
   }
-
   const orientation = getOrientation(children)
 
   // Mark it for testing purposes
-  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
   result.orientation = orientation
   result.children = []
@@ -677,6 +695,13 @@ function getNewCoordinate(coordinate) {
 
 function enrichData(trainingData) {
   const enrichedData = []
+
+  const negativeNrPattern = /[xy]-\d+/g
+
+  trainingData = trainingData.filter((data) => {
+    const { prompt, completion } = data
+    return !prompt.match(negativeNrPattern) && !completion.match(negativeNrPattern)
+  })
 
   for (let i = 0; i < trainingData.length; i++) {
     let { prompt, completion } = trainingData[i]
