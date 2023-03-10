@@ -125,13 +125,13 @@ const PROXY_DIV = 'proxy'
 const DISPLAY_GRID = 'grid'
 
 const ORIENTATION_LABEL = {
-  [ORIENTATION.ROW]: 'row',
-  [ORIENTATION.COL]: 'col',
-  [ORIENTATION.GRID]: 'grid',
-  [ORIENTATION.BLOCK_INLINE]: 'inline',
+  [ORIENTATION.ROW]: 'div',
+  [ORIENTATION.COL]: 'div',
+  [ORIENTATION.GRID]: 'div',
+  [ORIENTATION.BLOCK_INLINE]: 'div',
   [ORIENTATION.NOT_ALIGNED]: 'NA',
-  [ORIENTATION.ROW_WR]: 'rw',
-  [ORIENTATION.COL_WR]: 'cw',
+  [ORIENTATION.ROW_WR]: 'div',
+  [ORIENTATION.COL_WR]: 'div',
 }
 
 const ORIENTATION_COLOR = {
