@@ -18,7 +18,7 @@
   },
   "content_scripts": [
     {
-      "js": ["scripts/content-scraper.js"],
+      "js": ["scripts/plugin-scraper.js"],
       "matches": ["*://*/*"],
       "run_at": "document_idle"
     }
