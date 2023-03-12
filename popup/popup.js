@@ -3,12 +3,15 @@ const runContentScriptButton = document.getElementById('run-content-script')
 const sendDataButton = document.getElementById('send-data')
 const resultDiv = document.getElementById('result')
 
+const flatStructure = []
+
 runContentScriptButton.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
-        getDOMData()
+        flatStructure = getDOMData()
+        getNestedStructure(flatStructure)
       },
     })
   })
@@ -19,7 +22,8 @@ sendDataButton.addEventListener('click', function () {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
-        sendDataToServer()
+        const prompt = flatStructure[0].prompt
+        getNestedStructure(prompt)
       },
     })
   })

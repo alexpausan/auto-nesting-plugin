@@ -3,9 +3,8 @@
   "name": "Magic Plugin",
   "version": "1.0",
   "description": "A simple plugin that changes the background color of the current webpage",
-
   "permissions": ["activeTab", "scripting"],
-  "host_permissions": ["http://*/", "https://*/"],
+  "host_permissions": ["http://*/", "https://*/", "https://api.openai.com/*"],
   "action": {
     "default_icon": "images/icon128.png",
     "default_title": "Magic Plugin",
@@ -18,7 +17,7 @@
   },
   "content_scripts": [
     {
-      "js": ["scripts/plugin-scraper.js"],
+      "js": ["scripts/plugin-content-script.js"],
       "matches": ["*://*/*"],
       "run_at": "document_idle"
     }

@@ -179,24 +179,205 @@ let docHeight
 let docWidth
 
 function getDOMData() {
-  const t0 = performance.now()
   const body = document.body
 
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
   treeData = getTreeData(body)
-  console.log(treeData)
+  return buildTrainingData(treeData)
+}
 
-  let trainingData = buildTrainingData(treeData)
-  trainingData = enrichData(trainingData)
+async function getNestedStructure(flatStructure) {
+  if (!flatStructure) {
+    return
+  }
 
-  console.log(trainingData)
+  const t0 = performance.now()
+
+  const payload = {
+    model: 'babbage:ft-personal:100323-divs-5x-2023-03-10-20-49-21',
+    temperature: 0,
+    max_tokens: 1000,
+    top_p: 1,
+    frequency_penalty: 0,
+    presence_penalty: 0,
+    stop: [']] END'],
+  }
+
+  await flatStructure.forEach((item) => {
+    if (!item.prompt) {
+      return
+    }
+
+    payload.prompt = item.prompt
+
+    fetch('https://api.openai.com/v1/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer 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',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+      .then((response) => response.json())
+      .then(processOpenAIResponse)
+      .catch((error) => console.error(error))
+  })
+
   const t1 = performance.now()
-
   console.log(t1 - t0, 'milliseconds')
+}
 
-  return trainingData
+function processOpenAIResponse(data) {
+  if (!data?.choices) {
+    return
+  }
+
+  const { choices = [] } = data
+  let { text = '' } = choices[0]
+
+  if (!text.length) {
+    return
+  }
+
+  text = text.trim() + ']]'
+  const tree = stringToTree(text)
+
+  const treeWithRect = computeContainersRect(tree)
+
+  drawResults(treeWithRect)
+}
+
+const DIV_START = /^\[div/
+const PARENT_END = /^\]/
+const ELEMENT_END = /^\]/
+const DIV_PATERN_LENGTH = 4
+const CONTENT_ELEMENT = /^\[(\w+)\s*(x\w+)\s*(y\w+)\s*(w\w+)\s*(h\w+)/
+
+const DIV_ELEMENT = 'div'
+const LINK_ELEMENT = 'link'
+
+function getFirstWord(str) {
+  const match = str.match(/^([^\s\[\]]+)/)
+  return match ? match[1] : ''
+}
+
+function addOveralyToDom(rect) {
+  const el = document.createElement('div')
+  el.style.position = 'absolute'
+  el.style.border = '3px dashed red'
+  el.style.top = rect.y + 'px'
+  el.style.left = rect.x + 'px'
+  el.style.width = rect.width + 'px'
+  el.style.height = rect.height + 'px'
+  el.style.visibility = 'visible'
+  el.style.zIndex = 99000
+
+  document.body.appendChild(el)
+}
+
+function drawResults(tree) {
+  let { type, rect, children } = tree
+
+  if (type === DIV_ELEMENT && rect) {
+    addOveralyToDom(rect)
+  }
+
+  if (children?.length) {
+    children.forEach(drawResults)
+  }
+}
+
+function computeContainersRect(tree) {
+  let { type, rect, children } = tree
+
+  if (type === DIV_ELEMENT && children?.length) {
+    const childrenRects = children.map(computeContainersRect)
+
+    const x = Math.min(...childrenRects.map(({ rect }) => rect.x))
+    const y = Math.min(...childrenRects.map(({ rect }) => rect.y))
+    const width = Math.max(...childrenRects.map(({ rect }) => rect.x + rect.width)) - x
+    const height = Math.max(...childrenRects.map(({ rect }) => rect.y + rect.height)) - y
+
+    rect = { x, y, width, height }
+
+    tree.rect = rect
+  }
+
+  return tree
+}
+
+function stringToTree(data) {
+  const stack = []
+  let root = null
+  let currentNode = null
+  let index = 0
+
+  while (index < data.length) {
+    let currentText = data.substring(index)
+
+    if (DIV_START.test(currentText)) {
+      if (!root) {
+        root = { type: DIV_ELEMENT, children: [] }
+        currentNode = root
+      } else {
+        const newNode = { type: DIV_ELEMENT, children: [] }
+
+        currentNode.children = currentNode.children || []
+        currentNode.children.push(newNode)
+        stack.push(currentNode)
+        currentNode = newNode
+      }
+
+      index += DIV_PATERN_LENGTH
+      continue
+    }
+
+    if (PARENT_END.test(currentText)) {
+      currentNode = stack.pop()
+      index++
+      continue
+    }
+
+    const match = currentText.match(CONTENT_ELEMENT)
+
+    if (!match) {
+      return null
+    }
+
+    const elementType = match[1]
+    const x = parseInt(match[2].substring(1, match[2].length))
+    const y = parseInt(match[3].substring(1, match[3].length))
+    const width = parseInt(match[4].substring(1, match[4].length))
+    const height = parseInt(match[5].substring(1, match[5].length))
+
+    const newNode = {
+      type: elementType,
+      rect: {
+        x,
+        y,
+        width,
+        height,
+      },
+    }
+
+    index += match[0].length
+    currentText = currentText.substring(match[0].length)
+
+    if (ELEMENT_END.test(currentText)) {
+      currentNode.children.push(newNode)
+      index++
+      continue
+    }
+
+    newNode.children = []
+    currentNode.children.push(newNode)
+    stack.push(currentNode)
+    currentNode = newNode
+  }
+
+  return root
 }
 
 const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
@@ -250,10 +431,10 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
   if (orientation !== ORIENTATION.NOT_ALIGNED) {
     const divPercentage = DIV_PERCENTAGE
 
-    prompt = buildPrompt({ node, posAdjustment, includeContentChild, divPercentage })
+    prompt = buildPrompt({ node, includeContentChild, divPercentage })
     prompt += ` ${GPT_END_OF_PROMPT}`
 
-    completion = buildCompletion({ node, posAdjustment, includeContentChild })
+    completion = buildCompletion({ node, includeContentChild })
     completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
     // We only include the data if the prompt and completion are not too long
@@ -282,15 +463,17 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
 
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
-  const { tagName, children } = node
+  const { tagName, children, element } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+    element.style.visibility = 'hidden'
     return NO_DATA
   }
 
   let result = `[${elType} ${rectData}]`
+  element.style.visibility = 'visible'
 
   if (CONTENT_TAGS[tagName] && !includeContentChild) {
     return result
@@ -303,6 +486,7 @@ const buildPrompt = (props) => {
   // We include some containers in the prompt, for data variation
   if (CONTAINER_TAGS[tagName] && !includeContainerInPrompt(divPercentage)) {
     result = NO_DATA
+    element.style.visibility = 'hidden'
   }
 
   children.forEach((child) => {
@@ -343,7 +527,7 @@ const buildCompletion = (props) => {
 }
 
 const POS_ADJUSTMENT_PERCENTAGE = 0.5
-const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 7500
+const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 20000
 
 const adjustPositionToPageStart = () => Math.random() <= POS_ADJUSTMENT_PERCENTAGE
 
@@ -406,8 +590,8 @@ function getTreeData(element) {
   const orientation = getOrientation(children)
 
   // Mark it for testing purposes
-  element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
 
   result.orientation = orientation
   result.children = []
