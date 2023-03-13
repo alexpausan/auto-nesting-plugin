@@ -168,7 +168,7 @@ const MIN_CHARS = 50
 const MAX_CHARS = 4000
 
 const CHILD_LEVELS_TO_COVER = 2
-const DIV_PERCENTAGE = 0.3
+const DIV_PERCENTAGE = 0.05
 
 const NO_DATA = ''
 
@@ -185,18 +185,21 @@ function getDOMData() {
   docWidth = body.scrollWidth
 
   treeData = getTreeData(body)
-  return buildTrainingData(treeData)
+  const trainingData = buildTrainingData(treeData)
+  return trainingData
 }
 
-async function getNestedStructure(flatStructure) {
+async function getNestedStructure(flatStructure, model) {
   if (!flatStructure) {
     return
   }
 
+  document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
+
   const t0 = performance.now()
 
   const payload = {
-    model: 'babbage:ft-personal:100323-divs-5x-2023-03-10-20-49-21',
+    model,
     temperature: 0,
     max_tokens: 1000,
     top_p: 1,
@@ -205,7 +208,7 @@ async function getNestedStructure(flatStructure) {
     stop: [']] END'],
   }
 
-  await flatStructure.forEach((item) => {
+  flatStructure.forEach((item) => {
     if (!item.prompt) {
       return
     }
@@ -244,8 +247,11 @@ function processOpenAIResponse(data) {
   text = text.trim() + ']]'
   const tree = stringToTree(text)
 
-  const treeWithRect = computeContainersRect(tree)
+  if (!tree) {
+    return
+  }
 
+  const treeWithRect = computeContainersRect(tree)
   drawResults(treeWithRect)
 }
 
@@ -263,10 +269,11 @@ function getFirstWord(str) {
   return match ? match[1] : ''
 }
 
-function addOveralyToDom(rect) {
+function addOveralyToDom(rect, orientation) {
   const el = document.createElement('div')
+  el.classList.add('nesting-overlay')
   el.style.position = 'absolute'
-  el.style.border = '3px dashed red'
+  el.style.border = `4px dashed ${ORIENTATION_COLOR[orientation]}`
   el.style.top = rect.y + 'px'
   el.style.left = rect.x + 'px'
   el.style.width = rect.width + 'px'
@@ -278,10 +285,10 @@ function addOveralyToDom(rect) {
 }
 
 function drawResults(tree) {
-  let { type, rect, children } = tree
+  let { type, rect, children, orientation } = tree
 
   if (type === DIV_ELEMENT && rect) {
-    addOveralyToDom(rect)
+    addOveralyToDom(rect, orientation)
   }
 
   if (children?.length) {
@@ -292,29 +299,71 @@ function drawResults(tree) {
 function computeContainersRect(tree) {
   let { type, rect, children } = tree
 
-  if (type === DIV_ELEMENT && children?.length) {
+  if (children?.length) {
     const childrenRects = children.map(computeContainersRect)
 
-    const x = Math.min(...childrenRects.map(({ rect }) => rect.x))
-    const y = Math.min(...childrenRects.map(({ rect }) => rect.y))
-    const width = Math.max(...childrenRects.map(({ rect }) => rect.x + rect.width)) - x
-    const height = Math.max(...childrenRects.map(({ rect }) => rect.y + rect.height)) - y
+    let xValues = childrenRects.map((c) => c.rect.x).sort((a, b) => a - b)
+    let yValues = childrenRects.map((c) => c.rect.y).sort((a, b) => a - b)
+    let bottomValues = childrenRects.map((c) => c.rect.y + c.rect.height).sort((a, b) => a - b)
+    let rightValues = childrenRects.map((c) => c.rect.x + c.rect.width).sort((a, b) => a - b)
 
-    rect = { x, y, width, height }
+    const horizontalPosOfCenter = childrenRects
+      .map((c) => (c.rect.x + c.rect.width) / 2)
+      .sort((a, b) => a - b)
+
+    const verticalPosOfCenter = childrenRects
+      .map((c) => (c.rect.y + c.rect.height) / 2)
+      .sort((a, b) => a - b)
+
+    let x = xValues[0]
+    let y = yValues[0]
+    let width = rightValues[rightValues.length - 1] - x
+    let height = bottomValues[bottomValues.length - 1] - y
+
+    const payload = {
+      topValues: yValues,
+      leftValues: xValues,
+      bottomValues,
+      rightValues,
+      horizontalPosOfCenter,
+      verticalPosOfCenter,
+    }
+
+    const orientation = children?.length > 1 ? getOrientationBasedOnRects(payload) : ORIENTATION.ROW
+
+    if (type === LINK_ELEMENT) {
+      x = x < rect.x ? x : rect.x
+      y = y < rect.y ? y : rect.y
+      width = width > rect.width ? width : rect.width
+      height = height > rect.height ? height : rect.height
+    }
+
+    rect = {
+      x,
+      y,
+      width,
+      height,
+    }
 
     tree.rect = rect
+    tree.orientation = orientation
   }
 
   return tree
 }
 
 function stringToTree(data) {
+  if (!data) {
+    return null
+  }
+
   const stack = []
   let root = null
   let currentNode = null
   let index = 0
+  let dataLength = data.length
 
-  while (index < data.length) {
+  while (index < dataLength) {
     let currentText = data.substring(index)
 
     if (DIV_START.test(currentText)) {
@@ -323,6 +372,12 @@ function stringToTree(data) {
         currentNode = root
       } else {
         const newNode = { type: DIV_ELEMENT, children: [] }
+
+        if (!currentNode) {
+          currentNode = root
+          console.info('error - data generation')
+          console.log(data)
+        }
 
         currentNode.children = currentNode.children || []
         currentNode.children.push(newNode)
@@ -385,61 +440,21 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
 
   let prompt
   let completion
-  let completionToPromptRatio
+  let trainingSet = []
 
-  // If the node is not aligned, we default to going for multiple levels down for individual containers
-  if (orientation === ORIENTATION.NOT_ALIGNED) {
-    levelsToCover = CHILD_LEVELS_TO_COVER
-  }
+  if (orientation !== ORIENTATION.NOT_ALIGNED) {
+    const includeContentChild = includeChildrenOfContentEl()
+    const divPercentage = DIV_PERCENTAGE
 
-  // First try is to get the trainig data for the body / root node
-  if (levelsToCover === 0) {
-    prompt = buildPrompt({ node })
+    // First try is to get the trainig data for the body / root node
+    prompt = buildPrompt({ node, divPercentage, includeContentChild })
     prompt += ` ${GPT_END_OF_PROMPT}`
 
     completion = buildCompletion({ node })
     completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
-    if (prompt.length + completion.length < MAX_CHARS) {
-      return [{ prompt, completion }]
-    }
-
-    // If the prompt is too long we get data for each container X levels deep
-    return buildTrainingData(node, CHILD_LEVELS_TO_COVER)
-  }
-
-  if (!children?.length || CONTENT_TAGS[tagName]) {
-    return null
-  }
-
-  let trainingSet = []
-
-  // We normalize the individual container's position to the top left of the page half of the time
-  // And for first level children, we only adjust for the page's scroll position half of the time
-  const adjustPosition = adjustPositionToPageStart()
-  const posAdjustment = {
-    leftAdj: currentLevel > 1 && adjustPosition ? rect.left : 0,
-    topAdj:
-      (currentLevel > 0 && adjustPosition) || rect.top > MAX_PAGE_SCROLL_WITHOUT_OFFSET
-        ? rect.top
-        : 0,
-  }
-
-  const includeContentChild = includeChildrenOfContentEl()
-
-  // We only get data for divs that are aligned
-  if (orientation !== ORIENTATION.NOT_ALIGNED) {
-    const divPercentage = DIV_PERCENTAGE
-
-    prompt = buildPrompt({ node, includeContentChild, divPercentage })
-    prompt += ` ${GPT_END_OF_PROMPT}`
-
-    completion = buildCompletion({ node, includeContentChild })
-    completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
-
-    // We only include the data if the prompt and completion are not too long
-    if (prompt?.length > MIN_CHARS && prompt?.length + completion?.length < MAX_CHARS) {
-      trainingSet.push({ prompt, completion })
+    if (prompt.length > MIN_CHARS && prompt.length + completion.length < MAX_CHARS) {
+      return { prompt, completion }
     }
 
     // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -448,17 +463,15 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
     }
   }
 
-  currentLevel++
-
-  if (currentLevel <= levelsToCover) {
-    const childrenTrainingSet = children.map((child) => {
-      return buildTrainingData(child, levelsToCover, currentLevel)
-    })
-
-    trainingSet = trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+  if (!children?.length || CONTENT_TAGS[tagName]) {
+    return null
   }
 
-  return trainingSet
+  children.forEach((child) => {
+    trainingSet.push(buildTrainingData(child))
+  })
+
+  return trainingSet.filter((t) => t !== null)
 }
 
 const buildPrompt = (props) => {
@@ -474,6 +487,10 @@ const buildPrompt = (props) => {
 
   let result = `[${elType} ${rectData}]`
   element.style.visibility = 'visible'
+
+  if (CONTENT_TAGS[tagName]) {
+    element.style.background = 'rgba(0, 0, 0, 0.1)'
+  }
 
   if (CONTENT_TAGS[tagName] && !includeContentChild) {
     return result
@@ -726,6 +743,8 @@ function isNotVisible(element) {
   if (
     offsetRect.left >= docWidth ||
     offsetRect.top >= docHeight ||
+    offsetRect.left <= -offsetRect.width ||
+    offsetRect.top <= -offsetRect.height ||
     offsetRect.rigth <= 0 ||
     offsetRect.bottom <= 0 ||
     offsetRect.width === 0 ||
@@ -810,6 +829,32 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   rightValues.sort((a, b) => a - b)
   horizontalPosOfCenter.sort((a, b) => a - b)
   verticalPosOfCenter.sort((a, b) => a - b)
+
+  const payload = {
+    topValues,
+    bottomValues,
+    leftValues,
+    rightValues,
+    horizontalPosOfCenter,
+    verticalPosOfCenter,
+    parentDisplay,
+    allElementsAreInline,
+  }
+
+  return getOrientationBasedOnRects(payload)
+}
+
+function getOrientationBasedOnRects(props) {
+  const {
+    topValues,
+    bottomValues,
+    leftValues,
+    rightValues,
+    horizontalPosOfCenter,
+    verticalPosOfCenter,
+    parentDisplay,
+    allElementsAreInline,
+  } = props
 
   // Get the max difference in each case
   const topDiff = topValues[topValues.length - 1] - topValues[0]
