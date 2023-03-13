@@ -454,7 +454,7 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
     completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
     if (prompt.length > MIN_CHARS && prompt.length + completion.length < MAX_CHARS) {
-      return { prompt, completion }
+      return [{ prompt, completion }]
     }
 
     // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -646,9 +646,9 @@ function filterChildrenToCriteria(children) {
       return
     }
 
-    if (hasAbsolutePosition(child)) {
-      return
-    }
+    // if (hasAbsolutePosition(child)) {
+    //   return
+    // }
 
     // Filter any other type of element, except content or container tags
     if (!CONTAINER_TAGS[child.tagName] && !CONTENT_TAGS[child.tagName]) {
