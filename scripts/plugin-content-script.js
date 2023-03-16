@@ -524,91 +524,6 @@ function getOrientation(nodesList) {
   return ORIENTATION.NOT_ALIGNED
 }
 
-function hasAbsolutePosition(element) {
-  while (element && element !== document.body) {
-    let style = getNodeStyles(element)
-    if (style?.position?.includes('absolute') || style?.position?.includes('fixed')) {
-      return true
-    }
-
-    element = element.parentElement
-  }
-
-  return false
-}
-
-function isWithinViewport(node) {
-  // We take text nodes as visible by default
-  if (node.nodeName === NODE_TYPE.TEXT) {
-    return true
-  }
-
-  const styles = getNodeStyles(node)
-  const rect = getNodeRect(node)
-  const offsetRect = addOffsetToRect(rect)
-
-  // We include the ones that have display contents
-  if (styles.display === 'contents') {
-    node.style.display = 'block'
-    return true
-  }
-
-  // Exclude non visible elements or the ones outside the viewport
-  if (
-    offsetRect.left < docWidth &&
-    offsetRect.top < docHeight &&
-    offsetRect.left > -offsetRect.width &&
-    offsetRect.top > -offsetRect.height &&
-    offsetRect.right > 0 &&
-    offsetRect.bottom > 0 &&
-    offsetRect.width !== 0 &&
-    offsetRect.height !== 0 &&
-    styles.visibility !== 'hidden'
-  ) {
-    return true
-  }
-}
-
-function addOffsetToRect(rect) {
-  return {
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-    top: Math.round(rect.top + window.pageYOffset),
-    left: Math.round(rect.left + window.pageXOffset),
-    bottom: Math.round(rect.bottom + window.pageYOffset),
-    right: Math.round(rect.right + window.pageXOffset),
-  }
-}
-
-function isChildRedundant(element, child = {}) {
-  const childText =
-    child.nodeName === NODE_TYPE.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
-
-  // There may be cases where an anchor tag has a child that is not a text node
-  if (element?.innerText?.trim() === childText && !hasMediaElement(element)) {
-    return true
-  }
-
-  return false
-}
-
-function hasMediaElement(anchorTag) {
-  const innerHTML = anchorTag.innerHTML
-  const mediaRegex = /<audio|video|img|svg|picture|canvas|map/gi
-  return mediaRegex.test(innerHTML)
-}
-
-function arrayHasDuplicates(arr) {
-  const obj = {}
-  for (let i = 0; i < arr.length; i++) {
-    if (obj[arr[i]]) {
-      return true // found a duplicate, stop and return true
-    }
-    obj[arr[i]] = true // add current element as key to the object
-  }
-  return false // no duplicates found
-}
-
 // We try to calculate the orientation based on elements' position
 function getOrientationBasedOnPosition(nodesList, parentDisplay) {
   const topValues = []
@@ -733,6 +648,98 @@ function getOrientationBasedOnRects(props) {
   }
 
   return ORIENTATION.NOT_ALIGNED
+}
+
+function hasAbsolutePosition(node) {
+  while (node && node !== document.body) {
+    const style = getNodeStyles(node)
+    const rect = getNodeRect(node)
+    const { top } = addOffsetToRect(rect)
+
+    // We check if the element is absolute or fixed, below 10px from the top (aka navbar)
+    if (
+      style?.position?.includes('absolute') ||
+      (top > ALIGNMENT_TOLERANCE && style?.position?.includes('fixed'))
+    ) {
+      return true
+    }
+
+    node = node.parentNode
+  }
+
+  return false
+}
+
+function isWithinViewport(node) {
+  // We take text nodes as visible by default
+  if (node.nodeName === NODE_TYPE.TEXT) {
+    return true
+  }
+
+  const styles = getNodeStyles(node)
+  const rect = getNodeRect(node)
+  const offsetRect = addOffsetToRect(rect)
+
+  // We include the ones that have display contents
+  if (styles.display === 'contents') {
+    node.style.display = 'block'
+    return true
+  }
+
+  // Exclude non visible elements or the ones outside the viewport
+  if (
+    offsetRect.left < docWidth &&
+    offsetRect.top < docHeight &&
+    offsetRect.left > -offsetRect.width &&
+    offsetRect.top > -offsetRect.height &&
+    offsetRect.right > 0 &&
+    offsetRect.bottom > 0 &&
+    offsetRect.width !== 0 &&
+    offsetRect.height !== 0 &&
+    styles.visibility !== 'hidden'
+  ) {
+    return true
+  }
+}
+
+function addOffsetToRect(rect) {
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top + window.pageYOffset),
+    left: Math.round(rect.left + window.pageXOffset),
+    bottom: Math.round(rect.bottom + window.pageYOffset),
+    right: Math.round(rect.right + window.pageXOffset),
+  }
+}
+
+function isChildRedundant(element, child = {}) {
+  const childText =
+    child.nodeName === NODE_TYPE.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
+
+  // There may be cases where an anchor tag has a child that is not a text node
+  if (element?.innerText?.trim() === childText && !hasMediaElement(element)) {
+    return true
+  }
+
+  return false
+}
+
+function hasMediaElement(anchorTag) {
+  const innerHTML = anchorTag.innerHTML
+  const mediaRegex = /<audio|video|img|svg|picture|canvas|map/gi
+  return mediaRegex.test(innerHTML)
+}
+
+function arrayHasDuplicates(arr) {
+  const obj = {}
+  for (let i = 0; i < arr.length; i++) {
+    if (obj[arr[i]]) {
+      return true // found a duplicate, stop and return true
+    }
+    obj[arr[i]] = true // add current element as key to the object
+  }
+  return false // no duplicates found
 }
 
 function getRandomInt(delta = SPACE_UNIT) {
