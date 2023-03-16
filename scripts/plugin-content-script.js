@@ -73,6 +73,7 @@ const CONTENT_TAGS = {
   TEXTAREA: true,
   SELECT: true,
   '#text': true,
+  IFRAME: true,
 }
 
 const CONTENT_TAG_LABEL = {
@@ -109,6 +110,7 @@ const CONTENT_TAG_LABEL = {
   VIDEO: 'video',
   HR: 'hr',
   '#text': 'text',
+  IFRAME: 'iframe',
 }
 
 const ORIENTATION = {
@@ -173,7 +175,7 @@ const NO_DATA = ''
 const GPT_END_OF_PROMPT = '###'
 const GPT_END_OF_COMPLETION = 'END'
 
-const NODE_TYPE = {
+const NODE_NAME = {
   TEXT: '#text',
   INPUT: 'INPUT',
   SVG: 'svg',
@@ -217,15 +219,19 @@ function getTreeData(node) {
     styles: getCSSProperties(node, nodeName),
   }
 
-  if (nodeName === NODE_TYPE.SVG || nodeName === NODE_TYPE.SELECT || nodeName === NODE_TYPE.TEXT) {
+  if (nodeName === NODE_NAME.SVG || nodeName === NODE_NAME.SELECT || nodeName === NODE_NAME.TEXT) {
     return result
   }
 
-  if (nodeName === NODE_TYPE.INPUT) {
+  if (nodeName === NODE_NAME.INPUT) {
     return {
       ...result,
       type: node.type,
     }
+  }
+
+  if (node?.classList?.contains?.('w-video')) {
+    console.log('w-video', node)
   }
 
   // Omit div in div, until we find a container with multiple children or we reach a content node
@@ -402,10 +408,10 @@ const getElTypeAndRectData = (node, posAdjustment = {}) => {
 }
 
 function getNodeRect(node) {
-  if (node.nodeName === NODE_TYPE.TEXT) {
+  if (node.nodeName === NODE_NAME.TEXT) {
     const range = document.createRange()
     range.setStart(node, 0)
-    range.setEnd(node, node.length)
+    range.setEnd(node, node?.textContent?.trim()?.length)
 
     return range.getBoundingClientRect()
   }
@@ -414,7 +420,7 @@ function getNodeRect(node) {
 }
 
 function getNodeStyles(node) {
-  if (node.nodeName === NODE_TYPE.TEXT) {
+  if (node.nodeName === NODE_NAME.TEXT) {
     return {
       position: 'static',
       display: 'inline',
@@ -427,7 +433,7 @@ function getCSSProperties(node, nodeName) {
   const styles = {}
   let properties = STYLE_PROPERTIES.COMMON
 
-  if (nodeName === NODE_TYPE.TEXT) {
+  if (nodeName === NODE_NAME.TEXT) {
     const computedStyles = getComputedStyle(node.parentNode)
 
     for (const property of properties) {
@@ -472,8 +478,8 @@ function getChildrenWithoutExtraDivs(node) {
 
 function filterChildrenToCriteria(childNodes) {
   return childNodes.filter((child) => {
-    if (child.nodeType === NODE_TYPE.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
-      return true
+    if (child.nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
+      return isWithinViewport(child)
     }
 
     // Filter any other type of node, except content or container tags
@@ -671,9 +677,9 @@ function hasAbsolutePosition(node) {
 }
 
 function isWithinViewport(node) {
-  // We take text nodes as visible by default
-  if (node.nodeName === NODE_TYPE.TEXT) {
-    return true
+  // We exclude text nodes that have no content
+  if (node.nodeName === NODE_NAME.TEXT && !node.textContent.trim()) {
+    return false
   }
 
   const styles = getNodeStyles(node)
@@ -715,7 +721,7 @@ function addOffsetToRect(rect) {
 
 function isChildRedundant(element, child = {}) {
   const childText =
-    child.nodeName === NODE_TYPE.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
+    child.nodeName === NODE_NAME.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
 
   // There may be cases where an anchor tag has a child that is not a text node
   if (element?.innerText?.trim() === childText && !hasMediaElement(element)) {
