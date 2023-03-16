@@ -1,7 +1,6 @@
 // Parsing all the html
 
 const SPACE_UNIT = 4
-const ORIENTATION_THRESHOLD = 0.7
 const ALIGNMENT_TOLERANCE = 10
 
 const CONTAINER_TAGS = {
@@ -175,6 +174,13 @@ const NO_DATA = ''
 const GPT_END_OF_PROMPT = '###'
 const GPT_END_OF_COMPLETION = 'END'
 
+const NODE_TYPE = {
+  TEXT: '#text',
+  INPUT: 'INPUT',
+  SVG: 'svg',
+  SELECT: 'SELECT',
+}
+
 let docHeight
 let docWidth
 
@@ -184,7 +190,7 @@ function getDOMData() {
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
-  treeData = getTreeData(body)
+  const treeData = getTreeData(body)
   const trainingData = buildTrainingData(treeData)
   return trainingData
 }
@@ -308,11 +314,11 @@ function computeContainersRect(tree) {
     let rightValues = childrenRects.map((c) => c.rect.x + c.rect.width).sort((a, b) => a - b)
 
     const horizontalPosOfCenter = childrenRects
-      .map((c) => (c.rect.x + c.rect.width) / 2)
+      .map((c) => c.rect.x + c.rect.width / 2)
       .sort((a, b) => a - b)
 
     const verticalPosOfCenter = childrenRects
-      .map((c) => (c.rect.y + c.rect.height) / 2)
+      .map((c) => c.rect.y + c.rect.height / 2)
       .sort((a, b) => a - b)
 
     let x = xValues[0]
@@ -436,7 +442,7 @@ function stringToTree(data) {
 }
 
 const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
-  const { tagName, rect, children, orientation = ORIENTATION.NOT_ALIGNED, element } = node
+  const { nodeName, children, orientation = ORIENTATION.NOT_ALIGNED } = node
 
   let prompt
   let completion
@@ -463,36 +469,40 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
     }
   }
 
-  if (!children?.length || CONTENT_TAGS[tagName]) {
+  if (!children?.length || CONTENT_TAGS[nodeName]) {
     return null
   }
 
-  children.forEach((child) => {
-    trainingSet.push(buildTrainingData(child))
+  const childrenTrainingSet = children.map((child) => {
+    return buildTrainingData(child)
   })
 
-  return trainingSet.filter((t) => t !== null)
+  return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
 }
 
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
-  const { tagName, children, element } = node
+  const { nodeName, children, node: domNode } = node
+
+  if (domNode?.classList?.contains('home-footer-section')) {
+    console.log('here')
+  }
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
-    element.style.visibility = 'hidden'
+    domNode.style.visibility = 'hidden'
     return NO_DATA
   }
 
   let result = `[${elType} ${rectData}]`
-  element.style.visibility = 'visible'
+  domNode.style.visibility = 'visible'
 
-  if (CONTENT_TAGS[tagName]) {
-    element.style.background = 'rgba(0, 0, 0, 0.1)'
+  if (CONTENT_TAGS[nodeName]) {
+    domNode.style.background = 'rgba(0, 0, 0, 0.1)'
   }
 
-  if (CONTENT_TAGS[tagName] && !includeContentChild) {
+  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
     return result
   }
 
@@ -501,9 +511,9 @@ const buildPrompt = (props) => {
   }
 
   // We include some containers in the prompt, for data variation
-  if (CONTAINER_TAGS[tagName] && !includeContainerInPrompt(divPercentage)) {
+  if (CONTAINER_TAGS[nodeName] && !includeContainerInPrompt(divPercentage)) {
     result = NO_DATA
-    element.style.visibility = 'hidden'
+    domNode.style.visibility = 'hidden'
   }
 
   children.forEach((child) => {
@@ -515,7 +525,7 @@ const buildPrompt = (props) => {
 
 const buildCompletion = (props) => {
   const { node, includeContentChild = true, posAdjustment } = props
-  const { tagName, children } = node
+  const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
@@ -530,9 +540,9 @@ const buildCompletion = (props) => {
     return `${result} ${rectData}]`
   }
 
-  result += CONTENT_TAGS[tagName] ? ` ${rectData}` : ''
+  result += CONTENT_TAGS[nodeName] ? ` ${rectData}` : ''
 
-  if (CONTENT_TAGS[tagName] && !includeContentChild) {
+  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
     return `${result}]`
   }
 
@@ -554,7 +564,7 @@ const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
 
 const getElTypeAndRectData = (node, posAdjustment = {}) => {
-  const { tagName: tag, rect, orientation } = node
+  const { nodeName: tag, rect, orientation } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
 
   const elType = CONTAINER_TAGS[tag]
@@ -571,35 +581,58 @@ const getElTypeAndRectData = (node, posAdjustment = {}) => {
   }
 }
 
-function getTreeData(element) {
-  let { children, tagName } = element
+function getNodeRect(node) {
+  if (node.nodeName === NODE_TYPE.TEXT) {
+    const range = document.createRange()
+    range.setStart(node, 0)
+    range.setEnd(node, node.length)
 
-  const { top, left, width, height } = addOffsetToRect(element.getBoundingClientRect())
-
-  const result = {
-    element,
-    tagName: tagName,
-    rect: { top, left, width, height },
-    styles: getCSSProperties(element, tagName),
+    return range.getBoundingClientRect()
   }
 
-  if (tagName === 'INPUT') {
+  return node.getBoundingClientRect()
+}
+
+function getNodeStyles(node) {
+  if (node.nodeName === NODE_TYPE.TEXT) {
+    return {
+      position: 'static',
+      display: 'inline',
+    }
+  }
+  return getComputedStyle(node)
+}
+
+function getTreeData(node) {
+  let { nodeName } = node
+
+  const nodeRect = getNodeRect(node)
+  const { top, left, width, height } = addOffsetToRect(nodeRect)
+
+  const result = {
+    node,
+    nodeName,
+    rect: { top, left, width, height },
+    styles: getCSSProperties(node, nodeName),
+  }
+
+  if (nodeName === NODE_TYPE.SVG || nodeName === NODE_TYPE.SELECT || nodeName === NODE_TYPE.TEXT) {
+    return result
+  }
+
+  if (nodeName === NODE_TYPE.INPUT) {
     return {
       ...result,
-      type: element.type,
+      type: node.type,
     }
   }
 
-  if (tagName === 'svg' || tagName === 'SELECT') {
+  // Omit div in div, until we find a container with multiple children or we reach a content node
+  let children = getChildrenWithoutExtraDivs(node)
+
+  if (CONTENT_TAGS[nodeName] && children?.length === 1 && isChildRedundant(node, children[0])) {
     return result
   }
-
-  if (CONTENT_TAGS[tagName] && children?.length === 1 && isChildRedundant(element, children[0])) {
-    return result
-  }
-
-  // Omit div in div, until we find a container with multiple children or we reach a content element
-  children = getContainerWithMultipleChildrenOrContent(element)
 
   if (!children?.length) {
     return result
@@ -620,14 +653,21 @@ function getTreeData(element) {
   return result
 }
 
-function getCSSProperties(element, tagName) {
-  const computedStyles = getComputedStyle(element)
+function getCSSProperties(node, nodeName) {
   const styles = {}
 
+  if (nodeName === NODE_TYPE.TEXT) {
+    return {
+      position: 'static',
+      display: 'inline',
+    }
+  }
+
+  const computedStyles = getComputedStyle(node)
   let properties = STYLE_PROPERTIES.COMMON
 
-  // If element is container we add the container properties
-  if (CONTAINER_TAGS[tagName]) {
+  // If node is container we add the container properties
+  if (CONTAINER_TAGS[nodeName]) {
     properties = properties.concat(STYLE_PROPERTIES.CONTAINER)
   }
 
@@ -638,52 +678,45 @@ function getCSSProperties(element, tagName) {
   return styles
 }
 
-function filterChildrenToCriteria(children) {
-  const parentTagName = children[0]?.parentElement?.tagName || ''
-
-  return children.filter((child) => {
-    if (isNotVisible(child)) {
-      return
-    }
-
-    // if (hasAbsolutePosition(child)) {
-    //   return
+function filterChildrenToCriteria(childNodes) {
+  return childNodes.filter((child) => {
+    // if (child.nodeType === Node.TEXT_NODE && CONTAINER_TAGS[child.parentNode.nodeName]) {
+    //   return true
     // }
 
-    // Filter any other type of element, except content or container tags
-    if (!CONTAINER_TAGS[child.tagName] && !CONTENT_TAGS[child.tagName]) {
-      return
+    // Filter any other type of node, except content or container tags
+    if (CONTAINER_TAGS[child.nodeName] || CONTENT_TAGS[child.nodeName]) {
+      return isWithinViewport(child) && !hasAbsolutePosition(child)
     }
-    return true
   })
 }
 
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
-function getContainerWithMultipleChildrenOrContent(element) {
-  let { children, tagName } = element
+function getChildrenWithoutExtraDivs(node) {
+  let { childNodes, nodeName } = node
 
-  children = filterChildrenToCriteria(Array.from(children))
+  let children = filterChildrenToCriteria(Array.from(childNodes))
 
-  // If the element has only one child, and that child is a container, we continue
-  if (children.length === 1 && CONTAINER_TAGS[tagName] && CONTAINER_TAGS[children[0]?.tagName]) {
-    return getContainerWithMultipleChildrenOrContent(children[0])
+  // If the node has only one child, and that child is a container, we continue
+  if (children.length === 1 && CONTAINER_TAGS[nodeName] && CONTAINER_TAGS[children[0]?.nodeName]) {
+    return getChildrenWithoutExtraDivs(children[0])
   }
 
   return children
 }
 
-function getOrientation(elementList) {
-  if (!elementList || elementList.length < 1) {
+function getOrientation(nodesList) {
+  if (!nodesList || nodesList.length < 1) {
     return ORIENTATION.NOT_ALIGNED
   }
 
-  if (elementList.length === 1) {
+  if (nodesList.length === 1) {
     return ORIENTATION.ROW
   }
 
   // If the parent element has flex or grid set on it, we can use those values
-  const parentElement = elementList[0].parentElement
+  const parentElement = nodesList[0].parentElement
   const parentStyle = getComputedStyle(parentElement)
   const parentFlexDirection = parentStyle.getPropertyValue('flex-direction')
   const parentWrap = parentStyle.getPropertyValue('flex-wrap')
@@ -700,7 +733,7 @@ function getOrientation(elementList) {
   }
 
   // We try to calculate the orientation based on elements' position
-  const orientationFromPos = getOrientationBasedOnPosition(elementList, parentDisplay)
+  const orientationFromPos = getOrientationBasedOnPosition(nodesList, parentDisplay)
   if (orientationFromPos && orientationFromPos !== ORIENTATION.NOT_ALIGNED) {
     return orientationFromPos
   }
@@ -710,15 +743,15 @@ function getOrientation(elementList) {
   if (parentDisplay === DISPLAY_GRID) {
     return ORIENTATION.GRID
   }
-  // console.log('--- NOT ALIGNED---- ', elementList[0].parentElement)
+  // console.log('--- NOT ALIGNED---- ', nodesList[0].parentElement)
 
   return ORIENTATION.NOT_ALIGNED
 }
 
 function hasAbsolutePosition(element) {
   while (element && element !== document.body) {
-    let style = getComputedStyle(element)
-    if (style.position === 'absolute') {
+    let style = getNodeStyles(element)
+    if (style?.position?.includes('absolute') || style?.position?.includes('fixed')) {
       return true
     }
 
@@ -728,28 +761,34 @@ function hasAbsolutePosition(element) {
   return false
 }
 
-function isNotVisible(element) {
-  const styles = getComputedStyle(element)
-  const rect = element.getBoundingClientRect()
+function isWithinViewport(node) {
+  const rect = getNodeRect(node)
+
+  // We take text nodes as visible by default
+  if (node.nodeName === NODE_TYPE.TEXT) {
+    return true
+  }
+
+  const styles = getNodeStyles(node)
   const offsetRect = addOffsetToRect(rect)
 
   // We include the ones that have display contents
   if (styles.display === 'contents') {
-    element.style.display = 'block'
-    return
+    node.style.display = 'block'
+    return true
   }
 
   // Exclude non visible elements or the ones outside the viewport
   if (
-    offsetRect.left >= docWidth ||
-    offsetRect.top >= docHeight ||
-    offsetRect.left <= -offsetRect.width ||
-    offsetRect.top <= -offsetRect.height ||
-    offsetRect.rigth <= 0 ||
-    offsetRect.bottom <= 0 ||
-    offsetRect.width === 0 ||
-    offsetRect.height === 0 ||
-    styles.visibility === 'hidden'
+    offsetRect.left < docWidth &&
+    offsetRect.top < docHeight &&
+    offsetRect.left > -offsetRect.width &&
+    offsetRect.top > -offsetRect.height &&
+    offsetRect.right > 0 &&
+    offsetRect.bottom > 0 &&
+    offsetRect.width !== 0 &&
+    offsetRect.height !== 0 &&
+    styles.visibility !== 'hidden'
   ) {
     return true
   }
@@ -793,7 +832,7 @@ function arrayHasDuplicates(arr) {
 }
 
 // We try to calculate the orientation based on elements' position
-function getOrientationBasedOnPosition(elementList, parentDisplay) {
+function getOrientationBasedOnPosition(nodesList, parentDisplay) {
   const topValues = []
   const bottomValues = []
   const leftValues = []
@@ -802,14 +841,14 @@ function getOrientationBasedOnPosition(elementList, parentDisplay) {
   const verticalPosOfCenter = []
   let allElementsAreInline = true
 
-  for (let i = 0; i < elementList.length; i++) {
-    const currentEl = elementList[i]
-    const rect = currentEl.getBoundingClientRect()
+  for (let i = 0; i < nodesList.length; i++) {
+    const currentNode = nodesList[i]
+    const rect = getNodeRect(currentNode)
 
-    const currentElStyle = getComputedStyle(currentEl)
-    const currentElDisplay = currentElStyle.getPropertyValue('display')
+    const currentNodeStyle = getNodeStyles(currentNode)
+    const currentNodeDisplay = currentNodeStyle.display
 
-    if (currentElDisplay !== 'inline' && currentElDisplay !== 'inline-block') {
+    if (currentNodeDisplay !== 'inline' && currentNodeDisplay !== 'inline-block') {
       allElementsAreInline = false
     }
 
@@ -877,7 +916,7 @@ function getOrientationBasedOnRects(props) {
 
   // Second check compares the deviation from center on the 2 axis
   if (
-    verDiff < horDiff * ORIENTATION_THRESHOLD &&
+    verDiff < ALIGNMENT_TOLERANCE &&
     !arrayHasDuplicates(leftValues) &&
     !arrayHasDuplicates(rightValues)
   ) {
@@ -890,7 +929,7 @@ function getOrientationBasedOnRects(props) {
   }
 
   if (
-    verDiff * ORIENTATION_THRESHOLD > horDiff &&
+    horDiff < ALIGNMENT_TOLERANCE &&
     !arrayHasDuplicates(topValues) &&
     !arrayHasDuplicates(bottomValues)
   ) {
