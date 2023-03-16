@@ -197,8 +197,8 @@ function getDOMData() {
   docWidth = body.scrollWidth
 
   const tree = getTreeData(body)
+
   let trainingData = buildTrainingData(tree)
-  console.log(trainingData)
   trainingData = enrichData(trainingData)
 
   return trainingData
@@ -499,15 +499,15 @@ function getOrientation(nodesList) {
   const parentWrap = parentStyle.getPropertyValue('flex-wrap')
   const parentDisplay = parentStyle.getPropertyValue('display')
 
-  if (parentDisplay === 'flex') {
-    if (parentFlexDirection === 'row' || parentFlexDirection === 'row-reverse') {
-      return parentWrap === 'wrap' ? ORIENTATION.ROW_WR : ORIENTATION.ROW
-    }
+  // if (parentDisplay === 'flex') {
+  //   if (parentFlexDirection === 'row' || parentFlexDirection === 'row-reverse') {
+  //     return parentWrap === 'wrap' ? ORIENTATION.ROW_WR : ORIENTATION.ROW
+  //   }
 
-    if (parentFlexDirection === 'column' || parentFlexDirection === 'column-reverse') {
-      return parentWrap === 'wrap' ? ORIENTATION.COL_WR : ORIENTATION.COL
-    }
-  }
+  //   if (parentFlexDirection === 'column' || parentFlexDirection === 'column-reverse') {
+  //     return parentWrap === 'wrap' ? ORIENTATION.COL_WR : ORIENTATION.COL
+  //   }
+  // }
 
   // We try to calculate the orientation based on elements' position
   const orientationFromPos = getOrientationBasedOnPosition(nodesList, parentDisplay)
@@ -520,7 +520,6 @@ function getOrientation(nodesList) {
   if (parentDisplay === DISPLAY_GRID) {
     return ORIENTATION.GRID
   }
-  // console.log('--- NOT ALIGNED---- ', nodesList[0].parentElement)
 
   return ORIENTATION.NOT_ALIGNED
 }
@@ -582,8 +581,11 @@ function addOffsetToRect(rect) {
 }
 
 function isChildRedundant(element, child = {}) {
+  const childText =
+    child.nodeName === NODE_TYPE.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
+
   // There may be cases where an anchor tag has a child that is not a text node
-  if (element?.innerText?.trim() === child?.innerText?.trim() && !hasMediaElement(element)) {
+  if (element?.innerText?.trim() === childText && !hasMediaElement(element)) {
     return true
   }
 
@@ -656,7 +658,14 @@ function getOrientationBasedOnPosition(nodesList, parentDisplay) {
     allElementsAreInline,
   }
 
-  return getOrientationBasedOnRects(payload)
+  let computedOrientation = getOrientationBasedOnRects(payload)
+
+  if (computedOrientation === ORIENTATION.NOT_ALIGNED) {
+    payload.alignmentTolerance = ALIGNMENT_TOLERANCE * 1.5
+    computedOrientation = getOrientationBasedOnRects(payload)
+  }
+
+  return computedOrientation
 }
 
 function getOrientationBasedOnRects(props) {
@@ -669,6 +678,7 @@ function getOrientationBasedOnRects(props) {
     verticalPosOfCenter,
     parentDisplay,
     allElementsAreInline,
+    alignmentTolerance = ALIGNMENT_TOLERANCE,
   } = props
 
   // Get the max difference in each case
@@ -680,8 +690,8 @@ function getOrientationBasedOnRects(props) {
   const verDiff = verticalPosOfCenter[verticalPosOfCenter.length - 1] - verticalPosOfCenter[0]
 
   // The first check for alignment is a basic one, checking if the diff is within the tolerance
-  const horizontal = topDiff <= ALIGNMENT_TOLERANCE || bottomDiff <= ALIGNMENT_TOLERANCE
-  const vertical = leftDiff <= ALIGNMENT_TOLERANCE || rightDiff <= ALIGNMENT_TOLERANCE
+  const horizontal = topDiff <= alignmentTolerance || bottomDiff <= alignmentTolerance
+  const vertical = leftDiff <= alignmentTolerance || rightDiff <= alignmentTolerance
 
   if (horizontal && !vertical) {
     return ORIENTATION.ROW
@@ -692,7 +702,7 @@ function getOrientationBasedOnRects(props) {
 
   // Second check compares the deviation from center on the 2 axis
   if (
-    verDiff < ALIGNMENT_TOLERANCE &&
+    verDiff <= alignmentTolerance &&
     !arrayHasDuplicates(leftValues) &&
     !arrayHasDuplicates(rightValues)
   ) {
@@ -705,7 +715,7 @@ function getOrientationBasedOnRects(props) {
   }
 
   if (
-    horDiff < ALIGNMENT_TOLERANCE &&
+    horDiff <= alignmentTolerance &&
     !arrayHasDuplicates(topValues) &&
     !arrayHasDuplicates(bottomValues)
   ) {
