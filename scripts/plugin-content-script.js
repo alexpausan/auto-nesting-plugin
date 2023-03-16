@@ -72,6 +72,7 @@ const CONTENT_TAGS = {
   HR: true,
   TEXTAREA: true,
   SELECT: true,
+  '#text': true,
 }
 
 const CONTENT_TAG_LABEL = {
@@ -107,6 +108,7 @@ const CONTENT_TAG_LABEL = {
   AUDIO: 'audio',
   VIDEO: 'video',
   HR: 'hr',
+  '#text': 'text',
 }
 
 const ORIENTATION = {
@@ -167,7 +169,7 @@ const MIN_CHARS = 50
 const MAX_CHARS = 4000
 
 const CHILD_LEVELS_TO_COVER = 2
-const DIV_PERCENTAGE = 0.05
+const DIV_PERCENTAGE = 0
 
 const NO_DATA = ''
 
@@ -381,8 +383,7 @@ function stringToTree(data) {
 
         if (!currentNode) {
           currentNode = root
-          console.info('error - data generation')
-          console.log(data)
+          console.info('ERROR - data generation')
         }
 
         currentNode.children = currentNode.children || []
@@ -482,18 +483,21 @@ const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
 
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
-  const { nodeName, children, node: domNode } = node
+  let { nodeName, children, node: domNode } = node
+
+  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (domNode?.classList?.contains('home-footer-section')) {
     console.log('here')
   }
 
-  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
-
   if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
     domNode.style.visibility = 'hidden'
     return NO_DATA
   }
+
+  // If it's a #text node we need to get the parent
+  domNode = nodeName === NODE_TYPE.TEXT ? domNode.parentElement : domNode
 
   let result = `[${elType} ${rectData}]`
   domNode.style.visibility = 'visible'
@@ -655,16 +659,23 @@ function getTreeData(node) {
 
 function getCSSProperties(node, nodeName) {
   const styles = {}
+  let properties = STYLE_PROPERTIES.COMMON
 
   if (nodeName === NODE_TYPE.TEXT) {
+    const computedStyles = getComputedStyle(node.parentNode)
+
+    for (const property of properties) {
+      styles[property] = computedStyles.getPropertyValue(property)
+    }
+
     return {
+      ...styles,
       position: 'static',
       display: 'inline',
     }
   }
 
   const computedStyles = getComputedStyle(node)
-  let properties = STYLE_PROPERTIES.COMMON
 
   // If node is container we add the container properties
   if (CONTAINER_TAGS[nodeName]) {
@@ -680,9 +691,9 @@ function getCSSProperties(node, nodeName) {
 
 function filterChildrenToCriteria(childNodes) {
   return childNodes.filter((child) => {
-    // if (child.nodeType === Node.TEXT_NODE && CONTAINER_TAGS[child.parentNode.nodeName]) {
-    //   return true
-    // }
+    if (child.nodeType === Node.TEXT_NODE && CONTAINER_TAGS[child.parentNode.nodeName]) {
+      return true
+    }
 
     // Filter any other type of node, except content or container tags
     if (CONTAINER_TAGS[child.nodeName] || CONTENT_TAGS[child.nodeName]) {
@@ -762,14 +773,13 @@ function hasAbsolutePosition(element) {
 }
 
 function isWithinViewport(node) {
-  const rect = getNodeRect(node)
-
   // We take text nodes as visible by default
   if (node.nodeName === NODE_TYPE.TEXT) {
     return true
   }
 
   const styles = getNodeStyles(node)
+  const rect = getNodeRect(node)
   const offsetRect = addOffsetToRect(rect)
 
   // We include the ones that have display contents
