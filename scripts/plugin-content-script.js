@@ -168,9 +168,6 @@ const STYLE_PROPERTIES = {
 const MIN_CHARS = 50
 const MAX_CHARS = 4000
 
-const CHILD_LEVELS_TO_COVER = 2
-const DIV_PERCENTAGE = 0
-
 const NO_DATA = ''
 
 const GPT_END_OF_PROMPT = '###'
@@ -183,6 +180,13 @@ const NODE_TYPE = {
   SELECT: 'SELECT',
 }
 
+const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
+const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 2000
+const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 20000
+const INCLUDED_CONTENT_CHILD = 0.7
+const FIFTY_PERCENT = 0.5
+const DIV_PERCENTAGE = 0.25
+
 let docHeight
 let docWidth
 
@@ -192,319 +196,136 @@ function getDOMData() {
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
-  const treeData = getTreeData(body)
-  const trainingData = buildTrainingData(treeData)
+  const tree = getTreeData(body)
+  let trainingData = buildTrainingData(tree)
+  console.log(trainingData)
+  trainingData = enrichData(trainingData)
+
   return trainingData
 }
 
-async function getNestedStructure(flatStructure, model) {
-  if (!flatStructure) {
-    return
+function getTreeData(node) {
+  let { nodeName } = node
+
+  const nodeRect = getNodeRect(node)
+  const { top, left, width, height } = addOffsetToRect(nodeRect)
+
+  const result = {
+    node,
+    nodeName,
+    rect: { top, left, width, height },
+    styles: getCSSProperties(node, nodeName),
   }
 
-  document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
-
-  const t0 = performance.now()
-
-  const payload = {
-    model,
-    temperature: 0,
-    max_tokens: 1000,
-    top_p: 1,
-    frequency_penalty: 0,
-    presence_penalty: 0,
-    stop: [']] END'],
+  if (nodeName === NODE_TYPE.SVG || nodeName === NODE_TYPE.SELECT || nodeName === NODE_TYPE.TEXT) {
+    return result
   }
 
-  flatStructure.forEach((item) => {
-    if (!item.prompt) {
-      return
+  if (nodeName === NODE_TYPE.INPUT) {
+    return {
+      ...result,
+      type: node.type,
     }
+  }
 
-    payload.prompt = item.prompt
+  // Omit div in div, until we find a container with multiple children or we reach a content node
+  let children = getChildrenWithoutExtraDivs(node)
 
-    fetch('https://api.openai.com/v1/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer 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',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    })
-      .then((response) => response.json())
-      .then(processOpenAIResponse)
-      .catch((error) => console.error(error))
+  if (CONTENT_TAGS[nodeName] && children?.length === 1 && isChildRedundant(node, children[0])) {
+    return result
+  }
+
+  if (!children?.length) {
+    return result
+  }
+
+  // Mark it for testing purposes
+  if (children.length > 1) {
+    const orientation = getOrientation(children)
+
+    node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+    node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+    result.orientation = children?.length > 1 ? orientation : ''
+  }
+
+  result.children = []
+
+  children.forEach((child) => {
+    result.children.push(getTreeData(child))
   })
 
-  const t1 = performance.now()
-  console.log(t1 - t0, 'milliseconds')
+  return result
 }
 
-function processOpenAIResponse(data) {
-  if (!data?.choices) {
-    return
-  }
-
-  const { choices = [] } = data
-  let { text = '' } = choices[0]
-
-  if (!text.length) {
-    return
-  }
-
-  text = text.trim() + ']]'
-  const tree = stringToTree(text)
-
-  if (!tree) {
-    return
-  }
-
-  const treeWithRect = computeContainersRect(tree)
-  drawResults(treeWithRect)
-}
-
-const DIV_START = /^\[div/
-const PARENT_END = /^\]/
-const ELEMENT_END = /^\]/
-const DIV_PATERN_LENGTH = 4
-const CONTENT_ELEMENT = /^\[(\w+)\s*(x\w+)\s*(y\w+)\s*(w\w+)\s*(h\w+)/
-
-const DIV_ELEMENT = 'div'
-const LINK_ELEMENT = 'link'
-
-function getFirstWord(str) {
-  const match = str.match(/^([^\s\[\]]+)/)
-  return match ? match[1] : ''
-}
-
-function addOveralyToDom(rect, orientation) {
-  const el = document.createElement('div')
-  el.classList.add('nesting-overlay')
-  el.style.position = 'absolute'
-  el.style.border = `4px dashed ${ORIENTATION_COLOR[orientation]}`
-  el.style.top = rect.y + 'px'
-  el.style.left = rect.x + 'px'
-  el.style.width = rect.width + 'px'
-  el.style.height = rect.height + 'px'
-  el.style.visibility = 'visible'
-  el.style.zIndex = 99000
-
-  document.body.appendChild(el)
-}
-
-function drawResults(tree) {
-  let { type, rect, children, orientation } = tree
-
-  if (type === DIV_ELEMENT && rect) {
-    addOveralyToDom(rect, orientation)
-  }
-
-  if (children?.length) {
-    children.forEach(drawResults)
-  }
-}
-
-function computeContainersRect(tree) {
-  let { type, rect, children } = tree
-
-  if (children?.length) {
-    const childrenRects = children.map(computeContainersRect)
-
-    let xValues = childrenRects.map((c) => c.rect.x).sort((a, b) => a - b)
-    let yValues = childrenRects.map((c) => c.rect.y).sort((a, b) => a - b)
-    let bottomValues = childrenRects.map((c) => c.rect.y + c.rect.height).sort((a, b) => a - b)
-    let rightValues = childrenRects.map((c) => c.rect.x + c.rect.width).sort((a, b) => a - b)
-
-    const horizontalPosOfCenter = childrenRects
-      .map((c) => c.rect.x + c.rect.width / 2)
-      .sort((a, b) => a - b)
-
-    const verticalPosOfCenter = childrenRects
-      .map((c) => c.rect.y + c.rect.height / 2)
-      .sort((a, b) => a - b)
-
-    let x = xValues[0]
-    let y = yValues[0]
-    let width = rightValues[rightValues.length - 1] - x
-    let height = bottomValues[bottomValues.length - 1] - y
-
-    const payload = {
-      topValues: yValues,
-      leftValues: xValues,
-      bottomValues,
-      rightValues,
-      horizontalPosOfCenter,
-      verticalPosOfCenter,
-    }
-
-    const orientation = children?.length > 1 ? getOrientationBasedOnRects(payload) : ORIENTATION.ROW
-
-    if (type === LINK_ELEMENT) {
-      x = x < rect.x ? x : rect.x
-      y = y < rect.y ? y : rect.y
-      width = width > rect.width ? width : rect.width
-      height = height > rect.height ? height : rect.height
-    }
-
-    rect = {
-      x,
-      y,
-      width,
-      height,
-    }
-
-    tree.rect = rect
-    tree.orientation = orientation
-  }
-
-  return tree
-}
-
-function stringToTree(data) {
-  if (!data) {
-    return null
-  }
-
-  const stack = []
-  let root = null
-  let currentNode = null
-  let index = 0
-  let dataLength = data.length
-
-  while (index < dataLength) {
-    let currentText = data.substring(index)
-
-    if (DIV_START.test(currentText)) {
-      if (!root) {
-        root = { type: DIV_ELEMENT, children: [] }
-        currentNode = root
-      } else {
-        const newNode = { type: DIV_ELEMENT, children: [] }
-
-        if (!currentNode) {
-          currentNode = root
-          console.info('ERROR - data generation')
-        }
-
-        currentNode.children = currentNode.children || []
-        currentNode.children.push(newNode)
-        stack.push(currentNode)
-        currentNode = newNode
-      }
-
-      index += DIV_PATERN_LENGTH
-      continue
-    }
-
-    if (PARENT_END.test(currentText)) {
-      currentNode = stack.pop()
-      index++
-      continue
-    }
-
-    const match = currentText.match(CONTENT_ELEMENT)
-
-    if (!match) {
-      return null
-    }
-
-    const elementType = match[1]
-    const x = parseInt(match[2].substring(1, match[2].length))
-    const y = parseInt(match[3].substring(1, match[3].length))
-    const width = parseInt(match[4].substring(1, match[4].length))
-    const height = parseInt(match[5].substring(1, match[5].length))
-
-    const newNode = {
-      type: elementType,
-      rect: {
-        x,
-        y,
-        width,
-        height,
-      },
-    }
-
-    index += match[0].length
-    currentText = currentText.substring(match[0].length)
-
-    if (ELEMENT_END.test(currentText)) {
-      currentNode.children.push(newNode)
-      index++
-      continue
-    }
-
-    newNode.children = []
-    currentNode.children.push(newNode)
-    stack.push(currentNode)
-    currentNode = newNode
-  }
-
-  return root
-}
-
-const buildTrainingData = (node, levelsToCover = 0, currentLevel = 0) => {
-  const { nodeName, children, orientation = ORIENTATION.NOT_ALIGNED } = node
+const buildTrainingData = (node) => {
+  const { nodeName, children, rect, orientation = ORIENTATION.NOT_ALIGNED } = node
 
   let prompt
   let completion
   let trainingSet = []
 
-  if (orientation !== ORIENTATION.NOT_ALIGNED) {
-    const includeContentChild = includeChildrenOfContentEl()
-    const divPercentage = DIV_PERCENTAGE
-
-    // First try is to get the trainig data for the body / root node
-    prompt = buildPrompt({ node, divPercentage, includeContentChild })
-    prompt += ` ${GPT_END_OF_PROMPT}`
-
-    completion = buildCompletion({ node })
-    completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
-
-    if (prompt.length > MIN_CHARS && prompt.length + completion.length < MAX_CHARS) {
-      return [{ prompt, completion }]
-    }
-
-    // If we have a prompt too short we don't include it, and we don't visit the children either
-    if (prompt?.length < MIN_CHARS || completion?.length < MIN_CHARS) {
+  // If the node is not aligned, we go recursively through the children
+  if (orientation === ORIENTATION.NOT_ALIGNED) {
+    if (!children?.length || CONTENT_TAGS[nodeName]) {
       return null
     }
+
+    const childrenTrainingSet = children.map((child) => {
+      return buildTrainingData(child)
+    })
+
+    return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
-  if (!children?.length || CONTENT_TAGS[nodeName]) {
+  const includeContentChild = includeChildrenOfContentEl()
+  const divPercentage = Math.random() < FIFTY_PERCENT ? DIV_PERCENTAGE : 0
+
+  // We normalize the individual container's position to the top left of the page half of the time
+  // And for first level children, we only adjust for the page's scroll position half of the time
+  const adjustScroll = adjustScrollPosition()
+  const posAdjustment = {
+    leftAdj: 0,
+    topAdj:
+      rect.top < MIN_PAGE_SCROLL_WITHOUT_OFFSET ||
+      (rect.top < MAX_PAGE_SCROLL_WITHOUT_OFFSET && !adjustScroll)
+        ? 0
+        : rect.top,
+  }
+
+  // First try is to get the trainig data for the body / root node
+  prompt = buildPrompt({ node, posAdjustment, includeContentChild, divPercentage })
+  prompt += ` ${GPT_END_OF_PROMPT}`
+
+  completion = buildCompletion({ node, posAdjustment, includeContentChild })
+  completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
+
+  // If we have a prompt too short we don't include it, and we don't visit the children either
+  if (prompt?.length < MIN_CHARS || completion?.length < MIN_CHARS) {
     return null
   }
 
-  const childrenTrainingSet = children.map((child) => {
-    return buildTrainingData(child)
-  })
+  if (prompt.length + completion.length > MAX_CHARS) {
+    const childrenTrainingSet = children.map((child) => {
+      return buildTrainingData(child)
+    })
 
-  return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+    return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+  }
+
+  return [{ prompt, completion }]
 }
 
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
-  let { nodeName, children, node: domNode } = node
+  let { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-  if (domNode?.classList?.contains('home-footer-section')) {
-    console.log('here')
-  }
-
   if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
-    domNode.style.visibility = 'hidden'
     return NO_DATA
   }
 
-  // If it's a #text node we need to get the parent
-  domNode = nodeName === NODE_TYPE.TEXT ? domNode.parentElement : domNode
-
   let result = `[${elType} ${rectData}]`
-  domNode.style.visibility = 'visible'
-
-  if (CONTENT_TAGS[nodeName]) {
-    domNode.style.background = 'rgba(0, 0, 0, 0.1)'
-  }
 
   if (CONTENT_TAGS[nodeName] && !includeContentChild) {
     return result
@@ -517,7 +338,6 @@ const buildPrompt = (props) => {
   // We include some containers in the prompt, for data variation
   if (CONTAINER_TAGS[nodeName] && !includeContainerInPrompt(divPercentage)) {
     result = NO_DATA
-    domNode.style.visibility = 'hidden'
   }
 
   children.forEach((child) => {
@@ -557,12 +377,8 @@ const buildCompletion = (props) => {
   return `${result}]`
 }
 
-const POS_ADJUSTMENT_PERCENTAGE = 0.5
-const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 20000
+const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
-const adjustPositionToPageStart = () => Math.random() <= POS_ADJUSTMENT_PERCENTAGE
-
-const INCLUDED_CONTENT_CHILD = 0.7
 const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
 const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
@@ -607,56 +423,6 @@ function getNodeStyles(node) {
   return getComputedStyle(node)
 }
 
-function getTreeData(node) {
-  let { nodeName } = node
-
-  const nodeRect = getNodeRect(node)
-  const { top, left, width, height } = addOffsetToRect(nodeRect)
-
-  const result = {
-    node,
-    nodeName,
-    rect: { top, left, width, height },
-    styles: getCSSProperties(node, nodeName),
-  }
-
-  if (nodeName === NODE_TYPE.SVG || nodeName === NODE_TYPE.SELECT || nodeName === NODE_TYPE.TEXT) {
-    return result
-  }
-
-  if (nodeName === NODE_TYPE.INPUT) {
-    return {
-      ...result,
-      type: node.type,
-    }
-  }
-
-  // Omit div in div, until we find a container with multiple children or we reach a content node
-  let children = getChildrenWithoutExtraDivs(node)
-
-  if (CONTENT_TAGS[nodeName] && children?.length === 1 && isChildRedundant(node, children[0])) {
-    return result
-  }
-
-  if (!children?.length) {
-    return result
-  }
-  const orientation = getOrientation(children)
-
-  // Mark it for testing purposes
-  // element.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-  // element.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
-
-  result.orientation = orientation
-  result.children = []
-
-  children.forEach((child) => {
-    result.children.push(getTreeData(child))
-  })
-
-  return result
-}
-
 function getCSSProperties(node, nodeName) {
   const styles = {}
   let properties = STYLE_PROPERTIES.COMMON
@@ -689,19 +455,6 @@ function getCSSProperties(node, nodeName) {
   return styles
 }
 
-function filterChildrenToCriteria(childNodes) {
-  return childNodes.filter((child) => {
-    if (child.nodeType === Node.TEXT_NODE && CONTAINER_TAGS[child.parentNode.nodeName]) {
-      return true
-    }
-
-    // Filter any other type of node, except content or container tags
-    if (CONTAINER_TAGS[child.nodeName] || CONTENT_TAGS[child.nodeName]) {
-      return isWithinViewport(child) && !hasAbsolutePosition(child)
-    }
-  })
-}
-
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
 function getChildrenWithoutExtraDivs(node) {
@@ -715,6 +468,19 @@ function getChildrenWithoutExtraDivs(node) {
   }
 
   return children
+}
+
+function filterChildrenToCriteria(childNodes) {
+  return childNodes.filter((child) => {
+    if (child.nodeType === NODE_TYPE.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
+      return true
+    }
+
+    // Filter any other type of node, except content or container tags
+    if (CONTAINER_TAGS[child.nodeName] || CONTENT_TAGS[child.nodeName]) {
+      return isWithinViewport(child) && !hasAbsolutePosition(child)
+    }
+  })
 }
 
 function getOrientation(nodesList) {
@@ -971,7 +737,7 @@ function getNewCoordinate(coordinate) {
   return coordinate + delta < 0 ? 0 : coordinate + delta
 }
 
-function enrichData(trainingData) {
+function enrichData(trainingData = []) {
   const enrichedData = []
 
   const negativeNrPattern = /[xy]-\d+/g
