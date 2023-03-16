@@ -499,15 +499,15 @@ function getOrientation(nodesList) {
   const parentWrap = parentStyle.getPropertyValue('flex-wrap')
   const parentDisplay = parentStyle.getPropertyValue('display')
 
-  // if (parentDisplay === 'flex') {
-  //   if (parentFlexDirection === 'row' || parentFlexDirection === 'row-reverse') {
-  //     return parentWrap === 'wrap' ? ORIENTATION.ROW_WR : ORIENTATION.ROW
-  //   }
+  if (parentDisplay === 'flex') {
+    if (parentFlexDirection === 'row' || parentFlexDirection === 'row-reverse') {
+      return parentWrap === 'wrap' ? ORIENTATION.ROW_WR : ORIENTATION.ROW
+    }
 
-  //   if (parentFlexDirection === 'column' || parentFlexDirection === 'column-reverse') {
-  //     return parentWrap === 'wrap' ? ORIENTATION.COL_WR : ORIENTATION.COL
-  //   }
-  // }
+    if (parentFlexDirection === 'column' || parentFlexDirection === 'column-reverse') {
+      return parentWrap === 'wrap' ? ORIENTATION.COL_WR : ORIENTATION.COL
+    }
+  }
 
   // We try to calculate the orientation based on elements' position
   const orientationFromPos = getOrientationBasedOnPosition(nodesList, parentDisplay)
