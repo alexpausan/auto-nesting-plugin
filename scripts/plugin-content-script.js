@@ -1,8 +1,5 @@
 // Parsing all the html
 
-const SPACE_UNIT = 4
-const ALIGNMENT_TOLERANCE = 10
-
 const CONTAINER_TAGS = {
   BODY: true,
   DIV: true,
@@ -72,8 +69,8 @@ const CONTENT_TAGS = {
   HR: true,
   TEXTAREA: true,
   SELECT: true,
-  '#text': true,
   IFRAME: true,
+  '#text': true,
 }
 
 const CONTENT_TAG_LABEL = {
@@ -109,8 +106,8 @@ const CONTENT_TAG_LABEL = {
   AUDIO: 'audio',
   VIDEO: 'video',
   HR: 'hr',
-  '#text': 'text',
   IFRAME: 'iframe',
+  '#text': 'text',
 }
 
 const ORIENTATION = {
@@ -123,9 +120,11 @@ const ORIENTATION = {
   COL_WR: 'COL_WR',
 }
 
-const PROXY_DIV = 'proxy'
-
 const DISPLAY_GRID = 'grid'
+const DIV_LABELS = {
+  DIV: 'div',
+  PROXY: 'proxy',
+}
 
 const ORIENTATION_LABEL = {
   [ORIENTATION.ROW]: 'div',
@@ -167,14 +166,6 @@ const STYLE_PROPERTIES = {
   COMMON: ['position', 'display', 'align-self', 'border-width', 'font-size'],
 }
 
-const MIN_CHARS = 50
-const MAX_CHARS = 4000
-
-const NO_DATA = ''
-
-const GPT_END_OF_PROMPT = '###'
-const GPT_END_OF_COMPLETION = 'END'
-
 const NODE_NAME = {
   TEXT: '#text',
   INPUT: 'INPUT',
@@ -182,12 +173,26 @@ const NODE_NAME = {
   SELECT: 'SELECT',
 }
 
+const MIN_CHARS = 60
+const MAX_CHARS = 4000
+
+const NO_DATA = ''
+
+const GPT_END_OF_PROMPT = '###'
+const GPT_END_OF_COMPLETION = 'END'
+
+const SPACE_UNIT = 4
+const ALIGNMENT_TOLERANCE = 10
+const MAX_NAV_TOP = 10
+const MAX_NAV_SIZE = 120
+
 const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
 const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 2000
 const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 20000
+
 const INCLUDED_CONTENT_CHILD = 0.7
 const FIFTY_PERCENT = 0.5
-const DIV_PERCENTAGE = 0.25
+const DIV_PERCENTAGE = 0.2
 
 let docHeight
 let docWidth
@@ -203,6 +208,8 @@ function getDOMData() {
   let trainingData = buildTrainingData(tree)
   trainingData = enrichData(trainingData)
 
+  console.log(tree)
+  console.log(trainingData)
   return trainingData
 }
 
@@ -230,10 +237,6 @@ function getTreeData(node) {
     }
   }
 
-  if (node?.classList?.contains?.('w-video')) {
-    console.log('w-video', node)
-  }
-
   // Omit div in div, until we find a container with multiple children or we reach a content node
   let children = getChildrenWithoutExtraDivs(node)
 
@@ -245,13 +248,13 @@ function getTreeData(node) {
     return result
   }
 
-  // Mark it for testing purposes
   if (children.length > 1) {
     const orientation = getOrientation(children)
+    result.orientation = children?.length > 1 ? orientation : ''
 
+    // Mark it for testing purposes
     node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
     node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
-    result.orientation = children?.length > 1 ? orientation : ''
   }
 
   result.children = []
@@ -321,29 +324,54 @@ const buildTrainingData = (node) => {
   return [{ prompt, completion }]
 }
 
+function isAbsolutePosOrUnaligned(node) {
+  const { children, orientation, styles, rect } = node
+  const { top, left, width, height } = rect
+
+  // If an el has orientation then it's a div, and if not aligned, we exclude it from the prompt
+  if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
+    return true
+  }
+
+  // For absolute positioned elements, we do some extra checks (missed when crawled data)
+  if (styles?.position?.includes('absolute') || styles?.position?.includes('fixed')) {
+    if (top > MAX_NAV_TOP) {
+      return true
+    }
+
+    // Because the intention is to only include the nav bar, we exclude elements without children
+    if (!children?.length) {
+      return true
+    }
+
+    if (height > MAX_NAV_SIZE && width > MAX_NAV_SIZE) {
+      return true
+    }
+  }
+}
+
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
-  let { nodeName, children } = node
+  const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-  if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+  if (isAbsolutePosOrUnaligned(node)) {
     return NO_DATA
   }
 
-  let result = `[${elType} ${rectData}]`
-
-  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
-    return result
-  }
+  // We include some containers in the prompt, for data variation
+  let result =
+    CONTAINER_TAGS[nodeName] && !includeContainerInPrompt(divPercentage)
+      ? NO_DATA
+      : `[${elType} ${rectData}]`
 
   if (!children?.length) {
     return result
   }
 
-  // We include some containers in the prompt, for data variation
-  if (CONTAINER_TAGS[nodeName] && !includeContainerInPrompt(divPercentage)) {
-    result = NO_DATA
+  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
+    return result
   }
 
   children.forEach((child) => {
@@ -359,7 +387,7 @@ const buildCompletion = (props) => {
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
-  if (elType === ORIENTATION_LABEL.NOT_ALIGNED) {
+  if (isAbsolutePosOrUnaligned(node)) {
     return NO_DATA
   }
 
@@ -389,14 +417,15 @@ const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
 const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
 
+// In this version we don't take the orientation into account
 const getElTypeAndRectData = (node, posAdjustment = {}) => {
-  const { nodeName: tag, rect, orientation } = node
+  const { nodeName: tag, rect, children } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
 
   const elType = CONTAINER_TAGS[tag]
-    ? orientation
-      ? ORIENTATION_LABEL[orientation]
-      : PROXY_DIV
+    ? children
+      ? DIV_LABELS.DIV
+      : DIV_LABELS.PROXY
     : CONTENT_TAG_LABEL[tag]
 
   const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
@@ -407,6 +436,7 @@ const getElTypeAndRectData = (node, posAdjustment = {}) => {
   }
 }
 
+// Only for scraping
 function getNodeRect(node) {
   if (node.nodeName === NODE_NAME.TEXT) {
     const range = document.createRange()
@@ -419,16 +449,19 @@ function getNodeRect(node) {
   return node.getBoundingClientRect()
 }
 
-function getNodeStyles(node) {
-  if (node.nodeName === NODE_NAME.TEXT) {
-    return {
-      position: 'static',
-      display: 'inline',
-    }
+// Only for scraping
+function addOffsetToRect(rect) {
+  return {
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+    top: Math.round(rect.top + window.pageYOffset),
+    left: Math.round(rect.left + window.pageXOffset),
+    bottom: Math.round(rect.bottom + window.pageYOffset),
+    right: Math.round(rect.right + window.pageXOffset),
   }
-  return getComputedStyle(node)
 }
 
+// Only for scraping
 function getCSSProperties(node, nodeName) {
   const styles = {}
   let properties = STYLE_PROPERTIES.COMMON
@@ -461,6 +494,7 @@ function getCSSProperties(node, nodeName) {
   return styles
 }
 
+// Only for scraping
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
 function getChildrenWithoutExtraDivs(node) {
@@ -476,6 +510,7 @@ function getChildrenWithoutExtraDivs(node) {
   return children
 }
 
+// Only for scraping
 function filterChildrenToCriteria(childNodes) {
   return childNodes.filter((child) => {
     if (child.nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
@@ -658,16 +693,25 @@ function getOrientationBasedOnRects(props) {
 
 function hasAbsolutePosition(node) {
   while (node && node !== document.body) {
-    const style = getNodeStyles(node)
+    const styles = getNodeStyles(node)
     const rect = getNodeRect(node)
-    const { top } = addOffsetToRect(rect)
+    const { top, height, width } = addOffsetToRect(rect)
 
     // We check if the element is absolute or fixed, below 10px from the top (aka navbar)
-    if (
-      style?.position?.includes('absolute') ||
-      (top > ALIGNMENT_TOLERANCE && style?.position?.includes('fixed'))
-    ) {
-      return true
+    // For absolute positioned elements, we do some extra checks (missed when crawled data)
+    if (styles?.position?.includes('absolute') || styles?.position?.includes('fixed')) {
+      if (top > MAX_NAV_TOP) {
+        return true
+      }
+
+      // Because the intention is to only include the nav bar, we exclude elements without children
+      if (!node.children?.length) {
+        return true
+      }
+
+      if (height > MAX_NAV_SIZE && width > MAX_NAV_SIZE) {
+        return true
+      }
     }
 
     node = node.parentNode
@@ -708,17 +752,6 @@ function isWithinViewport(node) {
   }
 }
 
-function addOffsetToRect(rect) {
-  return {
-    width: Math.round(rect.width),
-    height: Math.round(rect.height),
-    top: Math.round(rect.top + window.pageYOffset),
-    left: Math.round(rect.left + window.pageXOffset),
-    bottom: Math.round(rect.bottom + window.pageYOffset),
-    right: Math.round(rect.right + window.pageXOffset),
-  }
-}
-
 function isChildRedundant(element, child = {}) {
   const childText =
     child.nodeName === NODE_NAME.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
@@ -729,6 +762,16 @@ function isChildRedundant(element, child = {}) {
   }
 
   return false
+}
+
+function getNodeStyles(node) {
+  if (node.nodeName === NODE_NAME.TEXT) {
+    return {
+      position: 'static',
+      display: 'inline',
+    }
+  }
+  return getComputedStyle(node)
 }
 
 function hasMediaElement(anchorTag) {
@@ -762,7 +805,6 @@ function getNewCoordinate(coordinate) {
 
 function enrichData(trainingData = []) {
   const enrichedData = []
-
   const negativeNrPattern = /[xy]-\d+/g
 
   trainingData = trainingData.filter((data) => {
