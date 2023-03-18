@@ -17,7 +17,7 @@
   },
   "content_scripts": [
     {
-      "js": ["scripts/plugin-content-script.js"],
+      "js": ["scripts/plugin-content-script.js", "scripts/testing-script.js"],
       "matches": ["*://*/*"],
       "run_at": "document_idle"
     }
