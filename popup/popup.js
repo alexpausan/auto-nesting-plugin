@@ -48,8 +48,3 @@ sendData2.addEventListener('click', function () {
     })
   })
 })
-
-chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
-  // message contains the data sent from the content script
-  console.log(message.data)
-})
