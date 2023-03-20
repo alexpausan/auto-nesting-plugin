@@ -333,17 +333,16 @@ const buildPrompt = (props) => {
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (isAbsolutePosOrUnaligned(node, divPercentage)) {
-    markForTesting(node, true)
+    // markForTesting(node, true)
     return NO_DATA
   }
 
+  // We include some containers in the prompt, for data variation
   const includeDiv = includeContainerInPrompt(divPercentage)
 
-  markForTesting(node, !includeDiv)
+  let result = elType === DIV_LABELS.DIV && !includeDiv ? NO_DATA : `[${elType} ${rectData}]`
 
-  // We include some containers in the prompt, for data variation
-  let result = CONTAINER_TAGS[nodeName] && !includeDiv ? NO_DATA : `[${elType} ${rectData}]`
-
+  // markForTesting(node, !includeDiv)
   if (!children?.length) {
     return result
   }
@@ -369,14 +368,12 @@ const buildCompletion = (props) => {
     return NO_DATA
   }
 
-  let result = `[${elType}`
+  let result = `[${elType} ${elType === DIV_LABELS.DIV ? NO_DATA : rectData}]`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
-    return `${result} ${rectData}]`
+    return `${result}]`
   }
-
-  result += CONTENT_TAGS[nodeName] ? ` ${rectData}` : ''
 
   if (CONTENT_TAGS[nodeName] && !includeContentChild) {
     return `${result}]`
