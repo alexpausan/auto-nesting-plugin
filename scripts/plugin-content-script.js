@@ -210,6 +210,8 @@ function getDOMData() {
 
   console.log(tree)
   console.log(trainingData)
+  console.log(trainingData[0].prompt)
+
   return trainingData
 }
 
@@ -266,7 +268,7 @@ function getTreeData(node) {
   return result
 }
 
-const buildTrainingData = (node) => {
+const buildTrainingData = (node = {}) => {
   const { nodeName, children, rect, orientation = ORIENTATION.NOT_ALIGNED } = node
 
   let prompt
@@ -751,10 +753,14 @@ function isWithinViewport(node) {
 
 function isChildRedundant(element, child = {}) {
   const childText =
-    child.nodeName === NODE_NAME.TEXT ? child?.textContent?.trim() : child?.innerText?.trim()
+    child.nodeName === NODE_NAME.TEXT
+      ? child?.textContent?.trim().toLowerCase()
+      : child?.innerText?.trim().toLowerCase()
+
+  const elementText = element?.innerText?.trim().toLowerCase()
 
   // There may be cases where an anchor tag has a child that is not a text node
-  if (element?.innerText?.trim() === childText && !hasMediaElement(element)) {
+  if (elementText === childText && !anchorWithMediaElement(element)) {
     return true
   }
 
@@ -771,10 +777,12 @@ function getNodeStyles(node) {
   return getComputedStyle(node)
 }
 
-function hasMediaElement(anchorTag) {
-  const innerHTML = anchorTag.innerHTML
+function anchorWithMediaElement(element) {
+  const nodeName = element.nodeName
+  const innerHTML = element.innerHTML
   const mediaRegex = /<audio|video|img|svg|picture|canvas|map/gi
-  return mediaRegex.test(innerHTML)
+
+  return nodeName === 'A' && mediaRegex.test(innerHTML)
 }
 
 function arrayHasDuplicates(arr) {
