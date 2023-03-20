@@ -324,32 +324,6 @@ const buildTrainingData = (node) => {
   return [{ prompt, completion }]
 }
 
-function isAbsolutePosOrUnaligned(node) {
-  const { children, orientation, styles, rect } = node
-  const { top, left, width, height } = rect
-
-  // If an el has orientation then it's a div, and if not aligned, we exclude it from the prompt
-  if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
-    return true
-  }
-
-  // For absolute positioned elements, we do some extra checks (missed when crawled data)
-  if (styles?.position?.includes('absolute') || styles?.position?.includes('fixed')) {
-    if (top > MAX_NAV_TOP) {
-      return true
-    }
-
-    // Because the intention is to only include the nav bar, we exclude elements without children
-    if (!children?.length) {
-      return true
-    }
-
-    if (height > MAX_NAV_SIZE && width > MAX_NAV_SIZE) {
-      return true
-    }
-  }
-}
-
 const buildPrompt = (props) => {
   const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
   const { nodeName, children } = node
@@ -361,10 +335,9 @@ const buildPrompt = (props) => {
   }
 
   // We include some containers in the prompt, for data variation
-  let result =
-    CONTAINER_TAGS[nodeName] && !includeContainerInPrompt(divPercentage)
-      ? NO_DATA
-      : `[${elType} ${rectData}]`
+  const includeDiv = includeContainerInPrompt(divPercentage)
+
+  let result = elType === DIV_LABELS.DIV && !includeDiv ? NO_DATA : `[${elType} ${rectData}]`
 
   if (!children?.length) {
     return result
@@ -391,14 +364,12 @@ const buildCompletion = (props) => {
     return NO_DATA
   }
 
-  let result = `[${elType}`
+  let result = `[${elType} ${elType === DIV_LABELS.DIV ? NO_DATA : rectData}]`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
-    return `${result} ${rectData}]`
+    return `${result}]`
   }
-
-  result += CONTENT_TAGS[nodeName] ? ` ${rectData}` : ''
 
   if (CONTENT_TAGS[nodeName] && !includeContentChild) {
     return `${result}]`
@@ -409,6 +380,32 @@ const buildCompletion = (props) => {
   })
 
   return `${result}]`
+}
+
+function isAbsolutePosOrUnaligned(node) {
+  const { children, orientation, styles, rect } = node
+  const { top, left, width, height } = rect
+
+  // If an el has orientation then it's a div, and if not aligned, we exclude it from the prompt
+  if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
+    return true
+  }
+
+  // For absolute positioned elements, we do some extra checks (missed when crawled data)
+  if (styles?.position?.includes('absolute') || styles?.position?.includes('fixed')) {
+    if (top > MAX_NAV_TOP) {
+      return true
+    }
+
+    // Because the intention is to only include the nav bar, we exclude elements without children
+    if (!children?.length) {
+      return true
+    }
+
+    if (height > MAX_NAV_SIZE && width > MAX_NAV_SIZE) {
+      return true
+    }
+  }
 }
 
 const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
