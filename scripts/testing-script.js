@@ -243,16 +243,22 @@ function stringToTree(data) {
   return root
 }
 
-function markForTesting(node, hideElement = false) {
-  let { nodeName, node: domNode } = node
+function markForTesting({ node, hideElement = false, includeDiv = false } = {}) {
+  let { nodeName, children, node: domNode } = node
 
   // If it's a #text node we need to get the parent
   domNode = nodeName === NODE_NAME.TEXT ? domNode.parentElement : domNode
 
+  if (hideElement) {
+    domNode.style.visibility = 'hidden'
+    return
+  }
+
   domNode.style.visibility = 'visible'
   domNode.style.background = 'rgba(0, 0, 0, 0.1)'
 
-  if (CONTAINER_TAGS[nodeName] && hideElement) {
+  // We hide the container elements
+  if (CONTAINER_TAGS[nodeName] && !includeDiv && children) {
     domNode.style.visibility = 'hidden'
   }
 }

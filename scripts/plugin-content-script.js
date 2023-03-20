@@ -333,7 +333,7 @@ const buildPrompt = (props) => {
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (isAbsolutePosOrUnaligned(node, divPercentage)) {
-    // markForTesting(node, true)
+    markForTesting({ node, hideElement: true })
     return NO_DATA
   }
 
@@ -342,7 +342,7 @@ const buildPrompt = (props) => {
 
   let result = elType === DIV_LABELS.DIV && !includeDiv ? NO_DATA : `[${elType} ${rectData}]`
 
-  // markForTesting(node, !includeDiv)
+  markForTesting({ node, includeDiv })
   if (!children?.length) {
     return result
   }
