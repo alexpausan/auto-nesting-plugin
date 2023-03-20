@@ -364,7 +364,7 @@ const buildCompletion = (props) => {
     return NO_DATA
   }
 
-  let result = `[${elType} ${elType === DIV_LABELS.DIV ? NO_DATA : rectData}]`
+  let result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
