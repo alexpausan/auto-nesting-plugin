@@ -1,11 +1,11 @@
 // const insertScript = document.getElementById('insert-content-script')
 const getTree = document.getElementById('get-tree')
-const buildTrainingData = document.getElementById('build-training')
+const buildTrainingDataBtn = document.getElementById('build-training')
 const sendData1 = document.getElementById('send-data-1')
 const sendData2 = document.getElementById('send-data-2')
 const resultDiv = document.getElementById('result')
 
-let flatStructure = []
+let domTree
 
 getTree.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -18,29 +18,22 @@ getTree.addEventListener('click', function () {
         console.log(res)
         const value = res[0]?.result
 
-        chrome.storage.local.set({ treeData: value }).then(() => {
-          console.log('Value is set to ' + value)
-        })
+        domTree = value
 
-        chrome.tabs.sendMessage(tabs[0].id, {
-          from: 'popup',
-          subject: 'treeData',
-          treeData: value,
-        })
+        // chrome.storage.local.set({ treeData: value }).then(() => {
+        // console.log('Value is set to ' + value)
+        // })
       })
   })
 })
 
-buildTrainingData.addEventListener('click', function () {
+buildTrainingDataBtn.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.scripting
-      .executeScript({
-        target: { tabId: tabs[0].id },
-        func: buildTrainingData,
-      })
-      .then((res) => {
-        console.log(res)
-      })
+    chrome.tabs.sendMessage(tabs[0].id, {
+      from: 'popup',
+      subject: 'treeData',
+      treeData: domTree,
+    })
   })
 })
 
