@@ -9,19 +9,15 @@ let domTree
 
 getTree.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.scripting
-      .executeScript({
-        target: { tabId: tabs[0].id },
-        files: ['scripts/scraper.js'],
-      })
-      .then((res) => {
-        console.log(res)
-        const value = res[0]?.result
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        domTree = getDOMData()
+        console.log(0, domTree)
 
-        chrome.storage.local.set({ treeData: value }).then(() => {
-          console.log('Value is set to ' + value)
-        })
-      })
+        chrome.storage.local.set({ domTree })
+      },
+    })
   })
 })
 
@@ -30,16 +26,13 @@ buildTrainingDataBtn.addEventListener('click', function () {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
-        chrome.storage.local.get(['treeData']).then((response) => {
-          const treeData = response.treeData
+        let trainingData = buildTrainingData(domTree)
+        trainingData = enrichData(trainingData)
 
-          let trainingData = buildTrainingData(treeData)
-          trainingData = enrichData(trainingData)
+        console.log(1, trainingData)
 
-          console.log(11, trainingData)
-
-          chrome.storage.local.set({ trainingData })
-        })
+        chrome.storage.local.set({ trainingData })
+        // })
       },
     })
   })

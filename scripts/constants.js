@@ -183,6 +183,7 @@ const GPT_END_OF_COMPLETION = 'END'
 
 const SPACE_UNIT = 4
 const ALIGNMENT_TOLERANCE = 10
+
 const MAX_NAV_TOP = 10
 const MAX_NAV_SIZE = 120
 

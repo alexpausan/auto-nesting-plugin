@@ -145,9 +145,9 @@
       styles: getCSSProperties(node, nodeName),
     }
 
-    // if (nodeName === NODE_NAME.TEXT) {
-    //   node.parentElement.style.outline = '4px solid #0013ff'
-    // }
+    if (nodeName === NODE_NAME.TEXT) {
+      node.parentElement.style.outline = '4px solid #0013ff'
+    }
 
     if (
       nodeName === NODE_NAME.SVG ||
@@ -181,8 +181,8 @@
       result.orientation = children?.length > 1 ? orientation : ''
 
       // Mark it for testing purposes
-      // node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
-      // node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+      node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+      node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
     }
 
     result.children = []
