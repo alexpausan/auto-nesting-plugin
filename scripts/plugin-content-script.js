@@ -222,7 +222,7 @@ function getTreeData(node) {
   const { top, left, width, height } = addOffsetToRect(nodeRect)
 
   const result = {
-    node,
+    // node,
     nodeName,
     rect: { top, left, width, height },
     styles: getCSSProperties(node, nodeName),
@@ -731,7 +731,7 @@ function isWithinViewport(node) {
 
   // We include the ones that have display contents
   if (styles.display === 'contents') {
-    node.style.display = 'block'
+    node.style.display = 'flex'
     return true
   }
 
@@ -796,18 +796,6 @@ function arrayHasDuplicates(arr) {
   return false // no duplicates found
 }
 
-function getRandomInt(delta = SPACE_UNIT) {
-  const min = Math.ceil(-delta)
-  const max = Math.floor(delta)
-
-  return Math.floor(Math.random() * (max - min) + min)
-}
-
-function getNewCoordinate(coordinate) {
-  const delta = getRandomInt()
-  return coordinate + delta < 0 ? 0 : coordinate + delta
-}
-
 function enrichData(trainingData = []) {
   const enrichedData = []
   const negativeNrPattern = /[xy]-\d+/g
@@ -827,4 +815,16 @@ function enrichData(trainingData = []) {
   }
 
   return trainingData.concat(enrichedData)
+}
+
+function getNewCoordinate(coordinate) {
+  const delta = getRandomInt()
+  return coordinate + delta < 0 ? 0 : coordinate + delta
+}
+
+function getRandomInt(delta = SPACE_UNIT) {
+  const min = Math.ceil(-delta)
+  const max = Math.floor(delta)
+
+  return Math.floor(Math.random() * (max - min) + min)
 }

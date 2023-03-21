@@ -1,4 +1,8 @@
-const buildTrainingData = (node = {}) => {
+export const buildTrainingData = (node = {}) => {
+  if (!node) {
+    return
+  }
+
   const { nodeName, children, rect, orientation = ORIENTATION.NOT_ALIGNED } = node
 
   let prompt

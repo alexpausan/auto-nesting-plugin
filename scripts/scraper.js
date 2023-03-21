@@ -139,10 +139,14 @@
     const { top, left, width, height } = addOffsetToRect(nodeRect)
 
     const result = {
-      node,
+      // node,
       nodeName,
       rect: { top, left, width, height },
       styles: getCSSProperties(node, nodeName),
+    }
+
+    if (nodeName === NODE_NAME.TEXT) {
+      // node.parentElement.style.outline = '4px solid red'
     }
 
     if (
@@ -175,6 +179,10 @@
     if (children.length > 1) {
       const orientation = getOrientation(children)
       result.orientation = children?.length > 1 ? orientation : ''
+
+      // Mark it for testing purposes
+      // node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+      // node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
     }
 
     result.children = []
@@ -186,6 +194,7 @@
     return result
   }
 
+  // Only for scraping
   function getNodeRect(node) {
     if (node.nodeName === NODE_NAME.TEXT) {
       const range = document.createRange()
@@ -260,6 +269,7 @@
     return children
   }
 
+  // Only for scraping
   function filterChildrenToCriteria(childNodes) {
     return childNodes.filter((child) => {
       if (child.nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
@@ -482,7 +492,7 @@
 
     // We include the ones that have display contents
     if (styles.display === 'contents') {
-      node.style.display = 'block'
+      node.style.display = 'flex'
       return true
     }
 
