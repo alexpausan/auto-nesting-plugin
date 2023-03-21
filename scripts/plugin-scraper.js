@@ -44,8 +44,14 @@ function getTreeData(node) {
   // Omit div in div, until we find a container with multiple children or we reach a content node
   let children = getChildrenWithoutExtraDivs(node)
 
-  if (CONTENT_TAGS[nodeName] && children?.length === 1 && isChildRedundant(node, children[0])) {
-    return result
+  if (CONTENT_TAGS[nodeName]) {
+    // if (nodeName !== NODE_NAME.A) {
+    //   return result
+    // }
+
+    if (children?.length === 1 && isChildRedundant(node, children[0])) {
+      return result
+    }
   }
 
   if (!children?.length) {

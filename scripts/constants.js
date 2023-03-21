@@ -48,6 +48,8 @@ const CONTENT_TAGS = {
   STRONG: true,
   EM: true,
   IMG: true,
+  SVG: true,
+  svg: true,
   PICTURE: true,
   BUTTON: true,
   INPUT: true,
@@ -191,6 +193,7 @@ const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
 const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 2000
 const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 20000
 
-const INCLUDED_CONTENT_CHILD = 0.7
+const INCLUDED_CONTENT_CHILD = 0.5
+
 const FIFTY_PERCENT = 0.5
 const DIV_PERCENTAGE = 0.2
