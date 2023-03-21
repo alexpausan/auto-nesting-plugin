@@ -18,27 +18,41 @@ getTree.addEventListener('click', function () {
         console.log(res)
         const value = res[0]?.result
 
-        domTree = value
-
-        // chrome.storage.local.set({ treeData: value }).then(() => {
-        // console.log('Value is set to ' + value)
-        // })
+        chrome.storage.local.set({ treeData: value }).then(() => {
+          console.log('Value is set to ' + value)
+        })
       })
   })
 })
 
 buildTrainingDataBtn.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    chrome.tabs.sendMessage(tabs[0].id, {
-      from: 'popup',
-      subject: 'treeData',
-      treeData: domTree,
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        chrome.storage.local.get(['treeData']).then((response) => {
+          const treeData = response.treeData
+
+          let trainingData = buildTrainingData(treeData)
+          trainingData = enrichData(trainingData)
+
+          console.log(11, trainingData)
+
+          chrome.storage.local.set({ trainingData })
+        })
+      },
     })
   })
 })
 
 sendData1.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.storage.local.get(['trainingData']).then((response) => {
+      const trainingData = response.trainingData
+
+      console.log(trainingData)
+    })
+
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {

@@ -3,14 +3,12 @@ chrome.runtime.onMessage.addListener((msg, sender, response) => {
 
   // First, validate the message's structure.
   if (from === 'popup' && subject === 'treeData') {
-    // console.log(msg.treeData)
-    if (!treeData) {
-      return
-    }
+    chrome.storage.local.get(['treeData']).then((response) => {
+      const treeData = response.treeData
 
-    let trainingData = buildTrainingData(treeData)
-    trainingData = enrichData(trainingData)
-
-    console.log(trainingData)
+      if (!treeData) {
+        return
+      }
+    })
   }
 })
