@@ -37,7 +37,7 @@ const buildTrainingData = (node = {}) => {
         : rect.top,
   }
 
-  // console.log(includeContentChild, includeDivs)
+  console.log(includeContentChild, includeDivs)
 
   // First try is to get the trainig data for the body / root node
   prompt = buildPrompt({ node, posAdjustment, includeContentChild, includeDivs })

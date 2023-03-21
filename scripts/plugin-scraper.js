@@ -13,8 +13,16 @@ function getDOMData() {
 }
 
 function getTreeData(node) {
-  let { nodeName } = node
+  // Omit div in div, until we find a container with multiple children or we reach a content node
+  let children = getChildrenWithoutExtraDivs(node)
 
+  // In case we have a container node with one child, we skip it and use the child instead
+  if (CONTAINER_TAGS[node.nodeName] && children?.length === 1) {
+    node = children[0]
+    children = getChildrenWithoutExtraDivs(node)
+  }
+
+  let { nodeName } = node
   const nodeRect = getNodeRect(node)
   const { top, left, width, height } = addOffsetToRect(nodeRect)
 
@@ -25,39 +33,39 @@ function getTreeData(node) {
     styles: getCSSProperties(node, nodeName),
   }
 
+  // TODO comment when scraping
   if (nodeName === NODE_NAME.TEXT) {
-    node.parentElement.style.outline = '4px solid #0013ff'
-  }
-
-  if (nodeName === NODE_NAME.SVG || nodeName === NODE_NAME.SELECT || nodeName === NODE_NAME.TEXT) {
-    return result
-  }
-
-  if (nodeName === NODE_NAME.INPUT) {
-    return {
-      ...result,
-      type: node.type,
-    }
-  }
-
-  // Omit div in div, until we find a container with multiple children or we reach a content node
-  let children = getChildrenWithoutExtraDivs(node)
-
-  if (CONTENT_TAGS[nodeName] && children?.length === 1 && isChildRedundant(node, children[0])) {
-    return result
+    node.parentElement.style.outline = '4px dashed #0013ff'
   }
 
   if (!children?.length) {
     return result
   }
 
-  // Mark it for testing purposes
-  if (children.length > 1) {
-    const orientation = getOrientation(children)
-    result.orientation = children?.length > 1 ? orientation : ''
+  if (CONTENT_TAGS[nodeName]) {
+    if (nodeName === NODE_NAME.SVG || nodeName === NODE_NAME.SELECT) {
+      return result
+    }
 
-    // Mark it for testing purposes
-    node.style.outline = '4px solid ' + ORIENTATION_COLOR[orientation]
+    if (nodeName === NODE_NAME.INPUT) {
+      return {
+        ...result,
+        type: node.type,
+      }
+    }
+
+    if (children?.length === 1 && isChildRedundant(node, children[0])) {
+      return result
+    }
+  }
+
+  // Mark it for testing purposes
+  if (children?.length > 1) {
+    const orientation = getOrientation(children)
+    result.orientation = orientation
+
+    // TODO comment when scraping - > Mark it for testing purposes
+    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
     node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
   }
 
@@ -129,7 +137,11 @@ function getCSSProperties(node, nodeName) {
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
 function getChildrenWithoutExtraDivs(node) {
-  let { childNodes } = node
+  let { childNodes, nodeName } = node
+
+  if (nodeName === NODE_NAME.TEXT) {
+    return
+  }
 
   let children = filterChildrenToCriteria(Array.from(childNodes))
 
