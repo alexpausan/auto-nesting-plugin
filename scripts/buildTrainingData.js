@@ -23,7 +23,7 @@ const buildTrainingData = (node = {}) => {
   }
 
   const includeContentChild = includeChildrenOfContentEl()
-  const divPercentage = Math.random() < FIFTY_PERCENT ? DIV_PERCENTAGE : 0
+  const includeDivs = includeContainerInPrompt()
 
   // We normalize the individual container's position to the top left of the page half of the time
   // And for first level children, we only adjust for the page's scroll position half of the time
@@ -37,8 +37,9 @@ const buildTrainingData = (node = {}) => {
         : rect.top,
   }
 
+  console.log(includeContentChild, includeDivs)
   // First try is to get the trainig data for the body / root node
-  prompt = buildPrompt({ node, posAdjustment, includeContentChild, divPercentage })
+  prompt = buildPrompt({ node, posAdjustment, includeContentChild, includeDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
   completion = buildCompletion({ node, posAdjustment, includeContentChild })
@@ -61,7 +62,7 @@ const buildTrainingData = (node = {}) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, divPercentage = 0, includeContentChild = true, posAdjustment } = props
+  const { node, includeContentChild = true, posAdjustment, includeDivs = false } = props
   const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
@@ -70,10 +71,7 @@ const buildPrompt = (props) => {
     return NO_DATA
   }
 
-  // We include some containers in the prompt, for data variation
-  const includeDiv = includeContainerInPrompt(divPercentage)
-
-  let result = elType === DIV_LABELS.DIV && !includeDiv ? NO_DATA : `[${elType} ${rectData}]`
+  let result = elType === DIV_LABELS.DIV && !includeDivs ? NO_DATA : `[${elType} ${rectData}]`
 
   if (!children?.length) {
     return result
@@ -147,7 +145,8 @@ const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
 const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
-const includeContainerInPrompt = (divPercentage) => Math.random() <= divPercentage
+const includeContainerInPrompt = (divPercentage) =>
+  Math.random() < FIFTY_PERCENT ? (Math.random() <= divPercentage ? DIV_PERCENTAGE : 0) : 0
 
 // In this version we don't take the orientation into account
 const getElTypeAndRectData = (node, posAdjustment = {}) => {

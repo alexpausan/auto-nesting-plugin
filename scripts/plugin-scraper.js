@@ -136,12 +136,12 @@ function getCSSProperties(node, nodeName) {
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
 function getChildrenWithoutExtraDivs(node) {
-  let { childNodes, nodeName } = node
+  let { childNodes } = node
 
   let children = filterChildrenToCriteria(Array.from(childNodes))
 
   // If the node has only one child, and that child is a container, we continue
-  if (children.length === 1 && CONTAINER_TAGS[nodeName] && CONTAINER_TAGS[children[0]?.nodeName]) {
+  if (children.length === 1 && CONTAINER_TAGS[children[0]?.nodeName]) {
     return getChildrenWithoutExtraDivs(children[0])
   }
 

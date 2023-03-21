@@ -26,6 +26,10 @@ buildTrainingDataBtn.addEventListener('click', function () {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
+        if (!domTree) {
+          console.log('No domTree')
+        }
+
         let trainingData = buildTrainingData(domTree)
         trainingData = enrichData(trainingData)
 
