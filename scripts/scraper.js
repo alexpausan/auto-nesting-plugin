@@ -145,6 +145,10 @@
       styles: getCSSProperties(node, nodeName),
     }
 
+    // if (nodeName === NODE_NAME.TEXT) {
+    //   node.parentElement.style.outline = '4px solid #0013ff'
+    // }
+
     if (
       nodeName === NODE_NAME.SVG ||
       nodeName === NODE_NAME.SELECT ||

@@ -117,7 +117,6 @@ const buildCompletion = (props) => {
 
   return `${result}]`
 }
-
 function isAbsolutePosOrUnaligned(node) {
   const { children, orientation, styles, rect } = node
   const { top, left, width, height } = rect
