@@ -33,6 +33,10 @@ function getTreeData(node) {
     styles: getCSSProperties(node, nodeName),
   }
 
+  if (CONTAINER_TAGS[nodeName]) {
+    result.classList = Array.from(node.classList)?.join(' ')?.substring(0, 50)
+  }
+
   // TODO comment when scraping
   if (nodeName === NODE_NAME.TEXT) {
     node.parentElement.style.outline = '4px dashed #0013ff'
