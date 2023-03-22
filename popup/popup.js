@@ -49,7 +49,7 @@ sendData1.addEventListener('click', function () {
           return
         }
 
-        const BABBAGE_MODEL = 'babbage:ft-personal:100323-divs-5x-2023-03-10-20-49-21'
+        const BABBAGE_MODEL = 'babbage:ft-personal:220323-divs-v5-2023-03-22-22-13-04'
         console.log('Call made')
         openAIResponse = await getNestedStructure(flatStructure, BABBAGE_MODEL)
       },

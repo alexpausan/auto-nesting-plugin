@@ -152,7 +152,7 @@ function computeContainersRect(tree) {
       verticalPosOfCenter,
     }
 
-    let orientation = ORIENTATION.ROW
+    let orientation
     if (children?.length > 1) {
       let computedOrientation = getOrientationBasedOnRects(payload)
 
