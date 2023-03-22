@@ -1,17 +1,44 @@
 // const insertScript = document.getElementById('insert-content-script')
-const runContentScriptButton = document.getElementById('run-content-script')
+const getTree = document.getElementById('get-tree')
+const buildTrainingDataBtn = document.getElementById('build-training')
 const sendData1 = document.getElementById('send-data-1')
 const sendData2 = document.getElementById('send-data-2')
 const resultDiv = document.getElementById('result')
 
-const flatStructure = []
+let domTree
+let prompt
 
-runContentScriptButton.addEventListener('click', function () {
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+getTree.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
-        flatStructure = getDOMData()
+        domTree = getDOMData()
+        console.log(0, domTree)
+
+        chrome.storage.local.set({ domTree })
+      },
+    })
+  })
+})
+
+buildTrainingDataBtn.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        if (!domTree) {
+          console.log('No domTree')
+        }
+
+        let trainingData = buildTrainingData(domTree)
+        prompt = trainingData[0].prompt
+        // trainingData = enrichData(trainingData)
+
+        console.log(1, trainingData)
+
+        chrome.storage.local.set({ trainingData })
+        // })
       },
     })
   })
@@ -19,6 +46,12 @@ runContentScriptButton.addEventListener('click', function () {
 
 sendData1.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    chrome.storage.local.get(['trainingData']).then((response) => {
+      const trainingData = response.trainingData
+
+      console.log(trainingData)
+    })
+
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
       function: () => {
