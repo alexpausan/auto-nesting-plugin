@@ -78,7 +78,7 @@ const buildPrompt = (props) => {
     return result
   }
 
-  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
+  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
     return result
   }
 
@@ -106,7 +106,7 @@ const buildCompletion = (props) => {
     return `${result}]`
   }
 
-  if (CONTENT_TAGS[nodeName] && !includeContentChild) {
+  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
     return `${result}]`
   }
 

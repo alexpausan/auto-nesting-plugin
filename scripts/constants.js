@@ -173,6 +173,7 @@ const NODE_NAME = {
   INPUT: 'INPUT',
   SVG: 'svg',
   SELECT: 'SELECT',
+  ANCHOR: 'A',
 }
 
 const MIN_CHARS = 60
