@@ -3,10 +3,11 @@ const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('build-training')
 const sendData1 = document.getElementById('send-data-1')
 const sendData2 = document.getElementById('send-data-2')
-const resultDiv = document.getElementById('result')
+const reprocessResponse = document.getElementById('reprocess-response')
 
 let domTree
-let prompt
+let flatStructure
+let openAIResponse
 
 getTree.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -31,14 +32,9 @@ buildTrainingDataBtn.addEventListener('click', function () {
           console.log('No domTree')
         }
 
-        let trainingData = buildTrainingData(domTree)
-        prompt = trainingData[0].prompt
-        // trainingData = enrichData(trainingData)
-
-        console.log(1, trainingData)
-
-        chrome.storage.local.set({ trainingData })
-        // })
+        flatStructure = buildTrainingData(domTree)
+        console.log(1, flatStructure)
+        // chrome.storage.local.set({ flatStructure })
       },
     })
   })
@@ -46,21 +42,16 @@ buildTrainingDataBtn.addEventListener('click', function () {
 
 sendData1.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    chrome.storage.local.get(['trainingData']).then((response) => {
-      const trainingData = response.trainingData
-
-      console.log(trainingData)
-    })
-
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
-      function: () => {
-        const BABBAGE_MODEL = 'babbage:ft-personal:100323-divs-5x-2023-03-10-20-49-21'
-
+      function: async () => {
         if (!flatStructure) {
           return
         }
-        getNestedStructure(flatStructure, BABBAGE_MODEL)
+
+        const BABBAGE_MODEL = 'babbage:ft-personal:100323-divs-5x-2023-03-10-20-49-21'
+        console.log('Call made')
+        openAIResponse = await getNestedStructure(flatStructure, BABBAGE_MODEL)
       },
     })
   })
@@ -70,13 +61,35 @@ sendData2.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
-      function: () => {
-        const CURIE_MODEL = 'curie:ft-personal:100323-curie-divs-2023-03-10-20-07-58'
-
+      function: async () => {
         if (!flatStructure) {
           return
         }
-        getNestedStructure(flatStructure, CURIE_MODEL)
+
+        const CURIE_MODEL = 'curie:ft-personal:100323-curie-divs-2023-03-10-20-07-58'
+        console.log('Call made')
+        openAIResponse = await getNestedStructure(flatStructure, CURIE_MODEL)
+      },
+    })
+  })
+})
+
+reprocessResponse.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    chrome.scripting.executeScript({
+      target: { tabId: tabs[0].id },
+      function: () => {
+        if (!openAIResponse?.length) {
+          return
+        }
+
+        console.log('Reprocess response', openAIResponse)
+        // Remove all overlays
+        document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
+
+        openAIResponse.forEach((response) => {
+          processOpenAIResponse(response)
+        })
       },
     })
   })

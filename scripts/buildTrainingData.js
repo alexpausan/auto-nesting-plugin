@@ -25,25 +25,11 @@ const buildTrainingData = (node = {}) => {
   const includeContentChild = includeChildrenOfContentEl()
   const includeDivs = includeContainerInPrompt()
 
-  // We normalize the individual container's position to the top left of the page half of the time
-  // And for first level children, we only adjust for the page's scroll position half of the time
-  const adjustScroll = adjustScrollPosition()
-  const posAdjustment = {
-    leftAdj: 0,
-    topAdj:
-      rect.top < MIN_PAGE_SCROLL_WITHOUT_OFFSET ||
-      (rect.top < MAX_PAGE_SCROLL_WITHOUT_OFFSET && !adjustScroll)
-        ? 0
-        : rect.top,
-  }
-
-  console.log(includeContentChild, includeDivs)
-
   // First try is to get the trainig data for the body / root node
-  prompt = buildPrompt({ node, posAdjustment, includeContentChild, includeDivs })
+  prompt = buildPrompt({ node, includeContentChild, includeDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, posAdjustment, includeContentChild })
+  completion = buildCompletion({ node, includeContentChild })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either

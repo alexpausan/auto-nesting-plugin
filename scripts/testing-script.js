@@ -2,10 +2,11 @@ async function getNestedStructure(flatStructure, model) {
   if (!flatStructure) {
     return
   }
-
+  // Clear previous overlays
   document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
 
   const t0 = performance.now()
+  const promises = []
 
   const payload = {
     model,
@@ -22,23 +23,34 @@ async function getNestedStructure(flatStructure, model) {
       return
     }
 
-    payload.prompt = item.prompt
+    const promise = new Promise(async (resolve) => {
+      payload.prompt = item.prompt
 
-    fetch('https://api.openai.com/v1/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: 'Bearer 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',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
+      fetch('https://api.openai.com/v1/completions', {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer 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',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      })
+        .then((response) => response.json())
+        .then((response) => {
+          processOpenAIResponse(response)
+          resolve(response)
+        })
+        .catch((error) => console.error(error))
     })
-      .then((response) => response.json())
-      .then(processOpenAIResponse)
-      .catch((error) => console.error(error))
+
+    promises.push(promise)
   })
+
+  const allResponses = await Promise.all(promises)
 
   const t1 = performance.now()
   console.log(t1 - t0, 'milliseconds')
+
+  return allResponses
 }
 
 function processOpenAIResponse(data) {
@@ -55,6 +67,8 @@ function processOpenAIResponse(data) {
 
   text = text.trim() + ']]'
   const tree = stringToTree(text)
+
+  console.log(text, tree)
 
   if (!tree) {
     return
@@ -138,7 +152,17 @@ function computeContainersRect(tree) {
       verticalPosOfCenter,
     }
 
-    const orientation = children?.length > 1 ? getOrientationBasedOnRects(payload) : ORIENTATION.ROW
+    let orientation = ORIENTATION.ROW
+    if (children?.length > 1) {
+      let computedOrientation = getOrientationBasedOnRects(payload)
+
+      if (computedOrientation === ORIENTATION.NOT_ALIGNED) {
+        payload.alignmentTolerance = ALIGNMENT_TOLERANCE * 2
+        computedOrientation = getOrientationBasedOnRects(payload)
+      }
+
+      orientation = computedOrientation
+    }
 
     if (type === LINK_ELEMENT) {
       x = x < rect.x ? x : rect.x
