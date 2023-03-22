@@ -17,12 +17,7 @@
   },
   "content_scripts": [
     {
-      "js": [
-        "scripts/content-script.js",
-        "scripts/constants.js",
-        "scripts/buildTrainingData.js",
-        "scripts/plugin-scraper.js"
-      ],
+      "js": ["scripts/constants.js", "scripts/buildTrainingData.js", "scripts/plugin-scraper.js"],
       "matches": ["*://*/*"],
       "run_at": "document_idle"
     }
