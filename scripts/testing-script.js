@@ -36,8 +36,15 @@ async function getNestedStructure(flatStructure, model) {
       })
         .then((response) => response.json())
         .then((response) => {
-          processOpenAIResponse(response)
-          resolve(response)
+          if (!response?.choices) {
+            resolve('')
+          }
+
+          const { choices = [] } = response
+          let { text = '' } = choices[0]
+
+          processOpenAIResponse(text)
+          resolve(text)
         })
         .catch((error) => console.error(error))
     })
@@ -53,14 +60,7 @@ async function getNestedStructure(flatStructure, model) {
   return allResponses
 }
 
-function processOpenAIResponse(data) {
-  if (!data?.choices) {
-    return
-  }
-
-  const { choices = [] } = data
-  let { text = '' } = choices[0]
-
+function processOpenAIResponse(text) {
   if (!text.length) {
     return
   }
@@ -68,13 +68,13 @@ function processOpenAIResponse(data) {
   text = text.trim() + ']]'
   const tree = stringToTree(text)
 
-  console.log(text, tree)
+  console.log({ text }, tree)
 
   if (!tree) {
     return
   }
 
-  const treeWithRect = computeContainersRect(tree)
+  const treeWithRect = computeContainersRectAndOrientation(tree)
   drawResults(treeWithRect)
 }
 
@@ -119,51 +119,68 @@ function drawResults(tree) {
   }
 }
 
-function computeContainersRect(tree) {
-  let { type, rect, children } = tree
+function computeContainersRectAndOrientation(node = {}) {
+  let { type, rect, children } = node
+
+  const topValues = []
+  const bottomValues = []
+  const leftValues = []
+  const rightValues = []
+  const horizontalPosOfCenter = []
+  const verticalPosOfCenter = []
+
+  const xEdges = []
+  const yEdges = []
 
   if (children?.length) {
-    const childrenRects = children.map(computeContainersRect)
+    const childrenRects = children.map(computeContainersRectAndOrientation)
 
-    let xValues = childrenRects.map((c) => c.rect.x).sort((a, b) => a - b)
-    let yValues = childrenRects.map((c) => c.rect.y).sort((a, b) => a - b)
-    let bottomValues = childrenRects.map((c) => c.rect.y + c.rect.height).sort((a, b) => a - b)
-    let rightValues = childrenRects.map((c) => c.rect.x + c.rect.width).sort((a, b) => a - b)
+    for (let i = 0; i < childrenRects.length; i++) {
+      const childRect = childrenRects[i]
 
-    const horizontalPosOfCenter = childrenRects
-      .map((c) => c.rect.x + c.rect.width / 2)
-      .sort((a, b) => a - b)
+      const { x, y, width, height } = childRect.rect
+      const right = x + width
+      const bottom = y + height
 
-    const verticalPosOfCenter = childrenRects
-      .map((c) => c.rect.y + c.rect.height / 2)
-      .sort((a, b) => a - b)
+      leftValues.push(x)
+      rightValues.push(right)
+      topValues.push(y)
+      bottomValues.push(bottom)
 
-    let x = xValues[0]
-    let y = yValues[0]
+      horizontalPosOfCenter.push(x + width / 2)
+      verticalPosOfCenter.push(y + height / 2)
+
+      xEdges.push(x, right)
+      yEdges.push(y, bottom)
+    }
+
+    // First we get all the edges of the children, then we sort them
+    topValues.sort((a, b) => a - b)
+    bottomValues.sort((a, b) => a - b)
+    leftValues.sort((a, b) => a - b)
+    rightValues.sort((a, b) => a - b)
+
+    // X and Y are the smallest values of the children,
+    // Width and Height are the difference between the biggest right/bottom and the smallest top/left
+    let x = leftValues[0]
+    let y = topValues[0]
     let width = rightValues[rightValues.length - 1] - x
     let height = bottomValues[bottomValues.length - 1] - y
 
     const payload = {
-      topValues: yValues,
-      leftValues: xValues,
+      topValues,
+      leftValues,
       bottomValues,
       rightValues,
       horizontalPosOfCenter,
       verticalPosOfCenter,
+      xEdges,
+      yEdges,
     }
 
-    let orientation
-    if (children?.length > 1) {
-      let computedOrientation = getOrientationBasedOnRects(payload)
+    const orientation = children?.length > 1 ? getOrientationBasedOnRects(payload) : null
 
-      if (computedOrientation === ORIENTATION.NOT_ALIGNED) {
-        payload.alignmentTolerance = ALIGNMENT_TOLERANCE * 2
-        computedOrientation = getOrientationBasedOnRects(payload)
-      }
-
-      orientation = computedOrientation
-    }
-
+    // It's quite common for Anchor elements to have children bigger than themself
     if (type === LINK_ELEMENT) {
       x = x < rect.x ? x : rect.x
       y = y < rect.y ? y : rect.y
@@ -178,11 +195,11 @@ function computeContainersRect(tree) {
       height,
     }
 
-    tree.rect = rect
-    tree.orientation = orientation
+    node.rect = rect
+    node.orientation = orientation
   }
 
-  return tree
+  return node
 }
 
 function stringToTree(data) {
@@ -252,6 +269,11 @@ function stringToTree(data) {
     index += match[0].length
     currentText = currentText.substring(match[0].length)
 
+    if (!currentNode) {
+      currentNode = root
+      console.info('ERR - 222  - data generation')
+    }
+
     if (ELEMENT_END.test(currentText)) {
       currentNode.children.push(newNode)
       index++
@@ -267,7 +289,7 @@ function stringToTree(data) {
   return root
 }
 
-function markForTesting({ node, hideElement = false, includeDivs = false } = {}) {
+function markForTesting({ node, hideElement = false, includeElement = false } = {}) {
   let { nodeName, children, node: domNode } = node
 
   // If it's a #text node we need to get the parent
@@ -278,11 +300,12 @@ function markForTesting({ node, hideElement = false, includeDivs = false } = {})
     return
   }
 
+  domNode.style.borderColor = 'transparent'
   domNode.style.visibility = 'visible'
-  domNode.style.background = 'rgba(0, 0, 0, 0.1)'
 
+  domNode.style.background = 'rgba(0, 0, 0, 0.1)'
   // We hide the container elements
-  if (CONTAINER_TAGS[nodeName] && !includeDivs && children) {
+  if (CONTAINER_TAGS[nodeName] && !includeElement && children) {
     domNode.style.visibility = 'hidden'
   }
 }

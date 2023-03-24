@@ -14,12 +14,19 @@ function getDOMData() {
 
 function getTreeData(node) {
   // Omit div in div, until we find a container with multiple children or we reach a content node
-  let children = getChildrenWithoutExtraDivs(node)
+  let children = skipSingleDivChild(node)
 
-  // In case we have a container node with one child, we skip it and use the child instead
-  if (CONTAINER_TAGS[node.nodeName] && children?.length === 1) {
-    node = children[0]
-    children = getChildrenWithoutExtraDivs(node)
+  if (CONTAINER_TAGS[node.nodeName]) {
+    // We skip divs without children and who are either Not visible or not Slot elements (absolute children)
+    if (children?.length === 0 && !isDivVisible(node) && !hasAbsoluteChild(node)) {
+      return
+    }
+
+    // In case we have a container node with one child, we skip it and use the child instead
+    if (children?.length === 1) {
+      node = children[0]
+      children = skipSingleDivChild(node)
+    }
   }
 
   let { nodeName } = node
@@ -33,25 +40,20 @@ function getTreeData(node) {
     styles: getCSSProperties(node, nodeName),
   }
 
-  // TODO comment when scraping
-  // if (nodeName === NODE_NAME.TEXT) {
-  //   // node.parentElement.style.outline = '4px dashed #0013ff'
-  // }
-
   if (!children?.length) {
     return result
   }
 
   if (CONTENT_TAGS[nodeName]) {
-    if (nodeName === NODE_NAME.SVG || nodeName === NODE_NAME.SELECT) {
-      return result
-    }
-
     if (nodeName === NODE_NAME.INPUT) {
       return {
         ...result,
         type: node.type,
       }
+    }
+
+    if (nodeName !== NODE_NAME.ANCHOR) {
+      return result
     }
 
     if (children?.length === 1 && isChildRedundant(node, children[0])) {
@@ -65,14 +67,17 @@ function getTreeData(node) {
     result.orientation = orientation
 
     // TODO comment when scraping - > Mark it for testing purposes
-    // node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
-    // node.style.outlineOffset = orientation === ORIENTATION.ROW ? '-3px' : '0px'
+    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
+    node.style.outlineOffset = '-4px'
   }
 
   result.children = []
 
   children.forEach((child) => {
-    result.children.push(getTreeData(child))
+    const childData = getTreeData(child)
+    if (childData) {
+      result.children.push(childData)
+    }
   })
 
   return result
@@ -136,7 +141,7 @@ function getCSSProperties(node, nodeName) {
 
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
-function getChildrenWithoutExtraDivs(node) {
+function skipSingleDivChild(node) {
   let { childNodes, nodeName } = node
 
   if (nodeName === NODE_NAME.TEXT) {
@@ -146,23 +151,33 @@ function getChildrenWithoutExtraDivs(node) {
   let children = filterChildrenToCriteria(Array.from(childNodes))
 
   // If the node has only one child, and that child is a container, we continue
-  if (children.length === 1 && CONTAINER_TAGS[children[0]?.nodeName]) {
-    return getChildrenWithoutExtraDivs(children[0])
+  if (children?.length === 1 && CONTAINER_TAGS[children[0]?.nodeName]) {
+    return skipSingleDivChild(children[0])
   }
 
   return children
 }
 
 // Only for scraping
-function filterChildrenToCriteria(childNodes) {
+function filterChildrenToCriteria(childNodes = []) {
   return childNodes.filter((child) => {
-    if (child.nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[child.parentNode.nodeName]) {
+    const { nodeName, parentNode, childNodes } = child
+
+    if (nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[parentNode.nodeName]) {
       return isWithinViewport(child)
     }
 
-    // Filter any other type of node, except content or container tags
-    if (CONTAINER_TAGS[child.nodeName] || CONTENT_TAGS[child.nodeName]) {
+    // Check content elements are visible
+    if (CONTENT_TAGS[nodeName]) {
       return isWithinViewport(child) && !hasAbsolutePosition(child)
+    }
+
+    if (CONTAINER_TAGS[nodeName]) {
+      return (
+        isWithinViewport(child) &&
+        !hasAbsolutePosition(child) &&
+        (childNodes?.length || isDivVisible(child))
+      )
     }
   })
 }
@@ -195,6 +210,7 @@ function getOrientation(nodesList) {
 
   // We try to calculate the orientation based on elements' position
   const orientationFromPos = getOrientationBasedOnPosition(nodesList, parentDisplay)
+
   if (orientationFromPos && orientationFromPos !== ORIENTATION.NOT_ALIGNED) {
     return orientationFromPos
   }
@@ -216,35 +232,36 @@ function getOrientationBasedOnPosition(nodesList, parentDisplay) {
   const rightValues = []
   const horizontalPosOfCenter = []
   const verticalPosOfCenter = []
+
+  const xEdges = []
+  const yEdges = []
+
   let allElementsAreInline = true
 
   for (let i = 0; i < nodesList.length; i++) {
-    const currentNode = nodesList[i]
-    const rect = getNodeRect(currentNode)
+    const node = nodesList[i]
+    const rect = getNodeRect(node)
 
-    const currentNodeStyle = getNodeStyles(currentNode)
+    const { top, bottom, left, right, width, height } = rect
+
+    topValues.push(top)
+    bottomValues.push(bottom)
+    leftValues.push(left)
+    rightValues.push(right)
+
+    horizontalPosOfCenter.push(left + width / 2)
+    verticalPosOfCenter.push(top + height / 2)
+
+    xEdges.push(left, right)
+    yEdges.push(top, bottom)
+
+    const currentNodeStyle = getNodeStyles(node)
     const currentNodeDisplay = currentNodeStyle.display
 
     if (currentNodeDisplay !== 'inline' && currentNodeDisplay !== 'inline-block') {
       allElementsAreInline = false
     }
-
-    topValues.push(rect.top)
-    bottomValues.push(rect.bottom)
-    leftValues.push(rect.left)
-    rightValues.push(rect.right)
-
-    horizontalPosOfCenter.push(rect.left + rect.width / 2)
-    verticalPosOfCenter.push(rect.top + rect.height / 2)
   }
-
-  // We use the default sort method, and compare the nr
-  topValues.sort((a, b) => a - b)
-  bottomValues.sort((a, b) => a - b)
-  leftValues.sort((a, b) => a - b)
-  rightValues.sort((a, b) => a - b)
-  horizontalPosOfCenter.sort((a, b) => a - b)
-  verticalPosOfCenter.sort((a, b) => a - b)
 
   const payload = {
     topValues,
@@ -255,19 +272,15 @@ function getOrientationBasedOnPosition(nodesList, parentDisplay) {
     verticalPosOfCenter,
     parentDisplay,
     allElementsAreInline,
+    xEdges,
+    yEdges,
+    nodesList,
   }
 
-  let computedOrientation = getOrientationBasedOnRects(payload)
-
-  if (computedOrientation === ORIENTATION.NOT_ALIGNED) {
-    payload.alignmentTolerance = ALIGNMENT_TOLERANCE * 1.5
-    computedOrientation = getOrientationBasedOnRects(payload)
-  }
-
-  return computedOrientation
+  return getOrientationBasedOnRects(payload)
 }
 
-function getOrientationBasedOnRects(props) {
+function getOrientationBasedOnRects(props, tryNr = 0) {
   const {
     topValues,
     bottomValues,
@@ -278,7 +291,34 @@ function getOrientationBasedOnRects(props) {
     parentDisplay,
     allElementsAreInline,
     alignmentTolerance = ALIGNMENT_TOLERANCE,
+    xEdges,
+    yEdges,
   } = props
+
+  // Check if xEdges and yEdges are ascending or descending, while not having duplicates on the opposite axis
+  if (
+    isArrayAscendingOrDescending(xEdges) &&
+    !arrayHasDuplicates(leftValues) &&
+    !arrayHasDuplicates(rightValues)
+  ) {
+    return ORIENTATION.ROW
+  }
+
+  if (
+    isArrayAscendingOrDescending(yEdges) &&
+    !arrayHasDuplicates(topValues) &&
+    !arrayHasDuplicates(bottomValues)
+  ) {
+    return ORIENTATION.COL
+  }
+
+  // We use the default sort method, and compare the nr
+  topValues.sort((a, b) => a - b)
+  bottomValues.sort((a, b) => a - b)
+  leftValues.sort((a, b) => a - b)
+  rightValues.sort((a, b) => a - b)
+  horizontalPosOfCenter.sort((a, b) => a - b)
+  verticalPosOfCenter.sort((a, b) => a - b)
 
   // Get the max difference in each case
   const topDiff = topValues[topValues.length - 1] - topValues[0]
@@ -329,6 +369,12 @@ function getOrientationBasedOnRects(props) {
   // There are cases where multiple text elements are used inside a container, and they may not be aligned
   if (parentDisplay === 'block' && allElementsAreInline) {
     return ORIENTATION.BLOCK_INLINE
+  }
+
+  if (tryNr === 0) {
+    // We call the function again, with a higher tolerance
+    props.alignmentTolerance = ALIGNMENT_TOLERANCE * 2
+    return getOrientationBasedOnRects(props, ++tryNr)
   }
 
   return ORIENTATION.NOT_ALIGNED
@@ -424,9 +470,9 @@ function getNodeStyles(node) {
 function anchorWithMediaElement(element) {
   const nodeName = element.nodeName
   const innerHTML = element.innerHTML
-  const mediaRegex = /<audio|video|img|svg|picture|canvas|map/gi
+  const mediaRegex = /<(?:audio|video|img|svg|picture|canvas|map)\b/gi
 
-  return nodeName === 'A' && mediaRegex.test(innerHTML)
+  return nodeName === NODE_NAME.ANCHOR && mediaRegex.test(innerHTML)
 }
 
 function arrayHasDuplicates(arr) {
@@ -438,4 +484,56 @@ function arrayHasDuplicates(arr) {
     obj[arr[i]] = true // add current element as key to the object
   }
   return false // no duplicates found
+}
+
+function isDivVisible(element) {
+  const style = getComputedStyle(element)
+
+  const hasVisibleBorder = style.borderStyle !== 'none' && style.borderWidth !== '0px'
+  const hasVisibleOutline = style.outlineStyle !== 'none' && style.outlineWidth !== '0px'
+
+  if (
+    (style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)') ||
+    hasVisibleBorder ||
+    hasVisibleOutline
+  ) {
+    return true
+  }
+
+  return false
+}
+
+function hasAbsoluteChild(element) {
+  for (const child of element.children) {
+    const style = window.getComputedStyle(child)
+    if (style.position === 'absolute') {
+      return true
+    }
+
+    if (hasAbsoluteChild(child)) {
+      return true
+    }
+  }
+
+  return false
+}
+
+function isArrayAscendingOrDescending(arr) {
+  let ascending = true
+  let descending = true
+
+  for (let i = 1; i < arr.length; i++) {
+    if (arr[i] < arr[i - 1]) {
+      ascending = false
+    }
+    if (arr[i] > arr[i - 1]) {
+      descending = false
+    }
+
+    if (!ascending && !descending) {
+      return false
+    }
+  }
+
+  return ascending || descending
 }

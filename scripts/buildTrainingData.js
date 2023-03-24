@@ -23,7 +23,8 @@ const buildTrainingData = (node = {}) => {
   }
 
   const includeContentChild = includeChildrenOfContentEl()
-  const includeDivs = includeContainerInPrompt()
+  const includeDivs = shouldPromptIncludeDivs()
+  console.log(includeDivs)
 
   // First try is to get the trainig data for the body / root node
   prompt = buildPrompt({ node, includeContentChild, includeDivs })
@@ -59,9 +60,17 @@ const buildPrompt = (props) => {
     return NO_DATA
   }
 
-  let result = elType === DIV_LABELS.DIV && !includeDivs ? NO_DATA : `[${elType} ${rectData}]`
+  let includeElement
+  let result = `[${elType} ${rectData}]`
 
-  markForTesting({ node, includeDivs })
+  if (elType === DIV_LABELS.DIV) {
+    includeElement = includeDivs && includeDivInPrompt()
+
+    result = includeElement ? result : NO_DATA
+  }
+
+  markForTesting({ node, includeElement })
+
   if (!children?.length) {
     return result
   }
@@ -134,21 +143,22 @@ const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
 const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
-const includeContainerInPrompt = (divPercentage) =>
-  Math.random() < FIFTY_PERCENT ? (Math.random() <= divPercentage ? DIV_PERCENTAGE : 0) : 0
+const shouldPromptIncludeDivs = () => Math.random() < PROMPTS_TO_INCLUDE_DIVS
+const includeDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 // In this version we don't take the orientation into account
 const getElTypeAndRectData = (node, posAdjustment = {}) => {
   const { nodeName: tag, rect, children } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
+  const { top, left, width, height } = rect
 
   const elType = CONTAINER_TAGS[tag]
     ? children
       ? DIV_LABELS.DIV
-      : DIV_LABELS.PROXY
+      : DIV_LABELS.SLOT
     : CONTENT_TAG_LABEL[tag]
 
-  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
+  const rectData = `top${top - topAdj} left${left - leftAdj} width${width} height${height}`
 
   return {
     elType,
