@@ -23,8 +23,9 @@ const buildTrainingData = (node = {}) => {
   }
 
   const includeContentChild = includeChildrenOfContentEl()
-  const includeDivs = includeContainerInPrompt()
+  const includeDivs = shouldPromptIncludeDivs()
 
+  // TODO -> move this to a function
   // We normalize the individual container's position to the top left of the page half of the time
   // And for first level children, we only adjust for the page's scroll position half of the time
   const adjustScroll = adjustScrollPosition()
@@ -36,8 +37,6 @@ const buildTrainingData = (node = {}) => {
         ? 0
         : rect.top,
   }
-
-  console.log(includeContentChild, includeDivs)
 
   // First try is to get the trainig data for the body / root node
   prompt = buildPrompt({ node, posAdjustment, includeContentChild, includeDivs })
@@ -69,10 +68,20 @@ const buildPrompt = (props) => {
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
 
   if (isAbsolutePosOrUnaligned(node)) {
+    // markForTesting({ node, hideElement: true })
     return NO_DATA
   }
 
-  let result = elType === DIV_LABELS.DIV && !includeDivs ? NO_DATA : `[${elType} ${rectData}]`
+  let includeElement
+  let result = `[${elType} ${rectData}]`
+
+  if (elType === DIV_LABELS.DIV) {
+    includeElement = includeDivs && includeDivInPrompt()
+
+    result = includeElement ? result : NO_DATA
+  }
+
+  markForTesting({ node, includeElement })
 
   if (!children?.length) {
     return result
@@ -99,6 +108,7 @@ const buildCompletion = (props) => {
     return NO_DATA
   }
 
+  // TODO -> change to include the rect data for the divs?
   let result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
@@ -146,21 +156,22 @@ const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
 const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
-const includeContainerInPrompt = (divPercentage) =>
-  Math.random() < FIFTY_PERCENT ? (Math.random() <= divPercentage ? DIV_PERCENTAGE : 0) : 0
+const shouldPromptIncludeDivs = () => Math.random() < PROMPTS_TO_INCLUDE_DIVS
+const includeDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 // In this version we don't take the orientation into account
 const getElTypeAndRectData = (node, posAdjustment = {}) => {
   const { nodeName: tag, rect, children } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
+  const { top, left, width, height } = rect
 
   const elType = CONTAINER_TAGS[tag]
     ? children
       ? DIV_LABELS.DIV
-      : DIV_LABELS.PROXY
+      : DIV_LABELS.SLOT
     : CONTENT_TAG_LABEL[tag]
 
-  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
+  const rectData = `top${top - topAdj} left${left - leftAdj} width${width} height${height}`
 
   return {
     elType,

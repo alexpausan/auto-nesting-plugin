@@ -3,9 +3,11 @@ const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('build-training')
 const sendData1 = document.getElementById('send-data-1')
 const sendData2 = document.getElementById('send-data-2')
-const resultDiv = document.getElementById('result')
+const reprocessResponse = document.getElementById('reprocess-response')
 
 let domTree
+let flatStructure
+let openAIResponse
 
 getTree.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -15,7 +17,7 @@ getTree.addEventListener('click', function () {
         domTree = getDOMData()
         console.log(0, domTree)
 
-        chrome.storage.local.set({ domTree })
+        // chrome.storage.local.set({ domTree })
       },
     })
   })
@@ -30,13 +32,9 @@ buildTrainingDataBtn.addEventListener('click', function () {
           console.log('No domTree')
         }
 
-        let trainingData = buildTrainingData(domTree)
-        trainingData = enrichData(trainingData)
-
+        flatStructure = buildTrainingData(domTree)
+        // flatStructure = enrichData(trainingData)
         console.log(1, trainingData)
-
-        chrome.storage.local.set({ trainingData })
-        // })
       },
     })
   })
@@ -44,21 +42,22 @@ buildTrainingDataBtn.addEventListener('click', function () {
 
 sendData1.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    chrome.storage.local.get(['trainingData']).then((response) => {
-      const trainingData = response.trainingData
-
-      console.log(trainingData)
-    })
+    const currentTab = tabs[0]
 
     chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      function: () => {
-        const BABBAGE_MODEL = 'babbage:ft-personal:220323-divs-v5-2023-03-22-22-13-04'
-
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url }],
+      function: async ({ url }) => {
         if (!flatStructure) {
           return
         }
-        getNestedStructure(flatStructure, BABBAGE_MODEL)
+
+        const BABBAGE_MODEL = 'babbage:ft-personal:220323-divs-v5-2023-03-22-22-13-04'
+
+        console.log('Processing')
+        openAIResponse = await getNestedStructure(flatStructure, BABBAGE_MODEL)
+
+        chrome.storage.local.set({ [url]: openAIResponse })
       },
     })
   })
@@ -66,21 +65,55 @@ sendData1.addEventListener('click', function () {
 
 sendData2.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    chrome.scripting.executeScript({
-      target: { tabId: tabs[0].id },
-      function: () => {
-        const CURIE_MODEL = 'curie:ft-personal:100323-curie-divs-2023-03-10-20-07-58'
+    const currentTab = tabs[0]
 
+    chrome.scripting.executeScript({
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url }],
+      function: async ({ url }) => {
         if (!flatStructure) {
           return
         }
-        getNestedStructure(flatStructure, CURIE_MODEL)
+
+        const CURIE_MODEL = 'curie:ft-personal:100323-curie-divs-2023-03-10-20-07-58'
+
+        console.log('Processing')
+        openAIResponse = await getNestedStructure(flatStructure, CURIE_MODEL)
+
+        chrome.storage.local.set({ [url]: openAIResponse })
       },
     })
   })
 })
 
-chrome.runtime.onMessage.addListener(function (message, sender, sendResponse) {
-  // message contains the data sent from the content script
-  console.log(message.data)
+reprocessResponse.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0]
+
+    chrome.scripting.executeScript({
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url }],
+      function: async ({ url }) => {
+        const storageData = await chrome.storage.local.get([url])
+        const openAIData = storageData[url]
+
+        const dataToProcess = openAIData?.length ? openAIData : TESTING_DATA[url]
+
+        console.log('Reprocess', storageData)
+        // console.log('Reprocess response', tabs[0].url, dataToProcess)
+
+        if (!dataToProcess?.length) {
+          console.log(123, 'No data to process')
+          return
+        }
+
+        // Remove all overlays
+        document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
+
+        dataToProcess.forEach((response) => {
+          processOpenAIResponse(response)
+        })
+      },
+    })
+  })
 })

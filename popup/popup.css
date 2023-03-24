@@ -1,6 +1,5 @@
 body {
   width: 250px;
-  height: 150px;
 }
 
 button {
@@ -16,7 +15,8 @@ button {
   justify-content: space-between;
   align-items: center;
   height: 100%;
-  padding: 32px 0;
+  padding: 16px 0;
+  gap: 24px;
 }
 
 .data-processor {
