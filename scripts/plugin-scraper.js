@@ -34,14 +34,11 @@ function getTreeData(node) {
   const { top, left, width, height } = addOffsetToRect(nodeRect)
 
   const result = {
-    // node,
+    node,
     nodeName,
     rect: { top, left, width, height },
     styles: getCSSProperties(node, nodeName),
-  }
-
-  if (CONTAINER_TAGS[nodeName]) {
-    result.classList = Array.from(node.classList)?.join(' ')?.substring(0, 50)
+    classList: getNodeClassList(node, nodeName),
   }
 
   if (!children?.length) {
@@ -71,8 +68,8 @@ function getTreeData(node) {
     result.orientation = orientation
 
     // TODO comment when scraping - > Mark it for testing purposes
-    // node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
-    // node.style.outlineOffset = '-4px'
+    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
+    node.style.outlineOffset = '-4px'
   }
 
   result.children = []
@@ -141,6 +138,14 @@ function getCSSProperties(node, nodeName) {
   }
 
   return styles
+}
+
+function getNodeClassList(node, nodeName) {
+  if (nodeName === NODE_NAME.TEXT) {
+    return ''
+  }
+
+  return Array.from(node.classList)?.join(' ')?.substring(0, 50)
 }
 
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple

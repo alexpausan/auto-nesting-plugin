@@ -33,8 +33,8 @@ buildTrainingDataBtn.addEventListener('click', function () {
         }
 
         flatStructure = buildTrainingData(domTree)
-        // flatStructure = enrichData(trainingData)
-        console.log(1, trainingData)
+        // flatStructure = enrichData(flatStructure)
+        console.log(1, flatStructure)
       },
     })
   })
