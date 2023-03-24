@@ -1,4 +1,12 @@
-// Parsing all the html
+// --- Scraping constants ---
+
+const MAX_NAV_TOP = 50
+const MAX_NAV_SIZE = 120
+
+const ALIGNMENT_TOLERANCE = 10
+
+const DISPLAY_GRID = 'grid'
+
 const CONTAINER_TAGS = {
   BODY: true,
   DIV: true,
@@ -75,6 +83,70 @@ const CONTENT_TAGS = {
   BLOCKQUOTE: true,
 }
 
+const ORIENTATION = {
+  ROW: 'ROW',
+  COL: 'COL',
+  GRID: 'GRID',
+  BLOCK_INLINE: 'BLOCK_INLINE',
+  NOT_ALIGNED: 'NOT_ALIGNED',
+  ROW_WR: 'ROW_WR',
+  COL_WR: 'COL_WR',
+}
+
+const STYLE_PROPERTIES = {
+  CONTAINER: [
+    'flex-direction',
+    'align-items',
+    'justify-content',
+    'flex-wrap',
+    'flex-basis',
+    'flex-grow',
+    'flex-shrink',
+    'grid-template-columns',
+    'grid-template-rows',
+    'background-color',
+    'background-image',
+    'gap',
+    'padding',
+    'margin',
+  ],
+  COMMON: ['position', 'display', 'align-self', 'border-width', 'font-size'],
+}
+
+const NODE_NAME = {
+  TEXT: '#text',
+  INPUT: 'INPUT',
+  SVG: 'svg',
+  SELECT: 'SELECT',
+  ANCHOR: 'A',
+}
+
+// ---- Prompt building constants ----
+
+const MIN_CHARS = 100
+const MAX_CHARS = 6000
+
+const NO_DATA = ''
+
+const GPT_END_OF_PROMPT = '###'
+const GPT_END_OF_COMPLETION = 'END'
+
+const SPACE_UNIT = 4
+
+const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
+const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 2000
+const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 5000
+
+const INCLUDED_CONTENT_CHILD = 0.7
+
+const PROMPTS_TO_INCLUDE_DIVS = 0.3
+const DIV_PERCENTAGE = 0.4
+
+const DIV_LABELS = {
+  DIV: 'div',
+  SLOT: 'slot',
+}
+
 const CONTENT_TAG_LABEL = {
   A: 'link',
   P: 'text',
@@ -113,23 +185,6 @@ const CONTENT_TAG_LABEL = {
   BLOCKQUOTE: 'text',
 }
 
-const ORIENTATION = {
-  ROW: 'ROW',
-  COL: 'COL',
-  GRID: 'GRID',
-  BLOCK_INLINE: 'BLOCK_INLINE',
-  NOT_ALIGNED: 'NOT_ALIGNED',
-  ROW_WR: 'ROW_WR',
-  COL_WR: 'COL_WR',
-}
-
-const DISPLAY_GRID = 'grid'
-
-const DIV_LABELS = {
-  DIV: 'div',
-  SLOT: 'slot',
-}
-
 const ORIENTATION_LABEL = {
   [ORIENTATION.ROW]: 'div',
   [ORIENTATION.COL]: 'div',
@@ -149,57 +204,6 @@ const ORIENTATION_COLOR = {
   [ORIENTATION.BLOCK_INLINE]: 'yellow',
   [ORIENTATION.NOT_ALIGNED]: 'black',
 }
-
-const STYLE_PROPERTIES = {
-  CONTAINER: [
-    'flex-direction',
-    'align-items',
-    'justify-content',
-    'flex-wrap',
-    'flex-basis',
-    'flex-grow',
-    'flex-shrink',
-    'grid-template-columns',
-    'grid-template-rows',
-    'background-color',
-    'background-image',
-    'gap',
-    'padding',
-    'margin',
-  ],
-  COMMON: ['position', 'display', 'align-self', 'border-width', 'font-size'],
-}
-
-const NODE_NAME = {
-  TEXT: '#text',
-  INPUT: 'INPUT',
-  SVG: 'svg',
-  SELECT: 'SELECT',
-  ANCHOR: 'A',
-}
-
-const MIN_CHARS = 100
-const MAX_CHARS = 6000
-
-const NO_DATA = ''
-
-const GPT_END_OF_PROMPT = '###'
-const GPT_END_OF_COMPLETION = 'END'
-
-const SPACE_UNIT = 4
-const ALIGNMENT_TOLERANCE = 10
-
-const MAX_NAV_TOP = 50
-const MAX_NAV_SIZE = 120
-
-const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
-const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 2000
-const MAX_PAGE_SCROLL_WITHOUT_OFFSET = 5000
-
-const INCLUDED_CONTENT_CHILD = 0.7
-
-const PROMPTS_TO_INCLUDE_DIVS = 0.3
-const DIV_PERCENTAGE = 0.4
 
 // ---- Testing data ---- Don't copy ----
 
