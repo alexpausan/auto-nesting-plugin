@@ -295,6 +295,10 @@ function markForTesting({ node, hideElement = false, includeElement = false } = 
   // If it's a #text node we need to get the parent
   domNode = nodeName === NODE_NAME.TEXT ? domNode.parentElement : domNode
 
+  if (!domNode) {
+    return
+  }
+
   if (hideElement) {
     domNode.style.visibility = 'hidden'
     return
