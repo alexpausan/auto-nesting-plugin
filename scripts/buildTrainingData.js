@@ -3,7 +3,7 @@ const buildTrainingData = (node = {}) => {
     return
   }
 
-  const { nodeName, children, rect, orientation = ORIENTATION.NOT_ALIGNED } = node
+  const { nodeName, children, orientation = ORIENTATION.NOT_ALIGNED } = node
 
   let prompt
   let completion
@@ -25,24 +25,13 @@ const buildTrainingData = (node = {}) => {
   const includeContentChild = includeChildrenOfContentEl()
   const includeDivs = shouldPromptIncludeDivs()
 
-  // TODO -> move this to a function
-  // We normalize the individual container's position to the top left of the page half of the time
-  // And for first level children, we only adjust for the page's scroll position half of the time
-  const adjustScroll = adjustScrollPosition()
-  const posAdjustment = {
-    leftAdj: 0,
-    topAdj:
-      rect.top < MIN_PAGE_SCROLL_WITHOUT_OFFSET ||
-      (rect.top < MAX_PAGE_SCROLL_WITHOUT_OFFSET && !adjustScroll)
-        ? 0
-        : rect.top,
-  }
+  // We override the top offset for elements so that we keep everything bellow 5000px
+  node.rect.top = getTopOffsetOverride(node)
 
-  // First try is to get the trainig data for the body / root node
-  prompt = buildPrompt({ node, posAdjustment, includeContentChild, includeDivs })
+  prompt = buildPrompt({ node, includeContentChild, includeDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, posAdjustment, includeContentChild })
+  completion = buildCompletion({ node, includeContentChild })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -50,6 +39,7 @@ const buildTrainingData = (node = {}) => {
     return null
   }
 
+  // If the prompt is too long, we get the training data from the children
   if (prompt.length + completion.length > MAX_CHARS) {
     const childrenTrainingSet = children.map((child) => {
       return buildTrainingData(child)
@@ -62,10 +52,10 @@ const buildTrainingData = (node = {}) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, includeContentChild = true, posAdjustment, includeDivs = false } = props
+  const { node, includeContentChild = true, topOffsetOverride, includeDivs = false } = props
   const { nodeName, children } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
+  const { elType, rectData } = getElTypeAndRectData(node, topOffsetOverride)
 
   if (isAbsolutePosOrUnaligned(node)) {
     // markForTesting({ node, hideElement: true })
@@ -99,10 +89,10 @@ const buildPrompt = (props) => {
 }
 
 const buildCompletion = (props) => {
-  const { node, includeContentChild = true, posAdjustment } = props
+  const { node, includeContentChild = true, topOffsetOverride } = props
   const { nodeName, children } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
+  const { elType, rectData } = getElTypeAndRectData(node, topOffsetOverride)
 
   if (isAbsolutePosOrUnaligned(node)) {
     return NO_DATA
@@ -160,18 +150,17 @@ const shouldPromptIncludeDivs = () => Math.random() < PROMPTS_TO_INCLUDE_DIVS
 const includeDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 // In this version we don't take the orientation into account
-const getElTypeAndRectData = (node, posAdjustment = {}) => {
+const getElTypeAndRectData = (node) => {
   const { nodeName: tag, rect, children } = node
-  const { leftAdj = 0, topAdj = 0 } = posAdjustment
   const { top, left, width, height } = rect
+
+  const rectData = `top${top} left${left} width${width} height${height}`
 
   const elType = CONTAINER_TAGS[tag]
     ? children
       ? DIV_LABELS.DIV
       : DIV_LABELS.SLOT
     : CONTENT_TAG_LABEL[tag]
-
-  const rectData = `top${top - topAdj} left${left - leftAdj} width${width} height${height}`
 
   return {
     elType,
@@ -210,4 +199,29 @@ function getRandomInt(delta = SPACE_UNIT) {
   const max = Math.floor(delta)
 
   return Math.floor(Math.random() * (max - min) + min)
+}
+
+function getRandomIntInRange(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min
+}
+
+// I don't want to train the model with huge top offsets
+function getTopOffsetOverride(node) {
+  const { rect, nodeName = '', classList = '' } = node
+  const { top } = rect
+
+  if (nodeName.toLowerCase().includes('footer') || classList?.toLowerCase().includes('footer')) {
+    return getRandomIntInRange(MIN_OFfSET_FOR_FOOTER, MAX_PAGE_SCROLL_WITHOUT_OFFSET)
+  }
+
+  if (top > MAX_PAGE_SCROLL_WITHOUT_OFFSET) {
+    return getRandomIntInRange(MIN_OFFSET_FOR_REPOSITION, MAX_PAGE_SCROLL_WITHOUT_OFFSET)
+  }
+
+  const adjustScroll = adjustScrollPosition()
+  if (top > MIN_PAGE_SCROLL_WITHOUT_OFFSET && adjustScroll) {
+    return getRandomIntInRange(MIN_OFFSET_FOR_REPOSITION, top)
+  }
+
+  return top
 }
