@@ -40,7 +40,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
         // const buildPromptWithDivs = true
         // trainingData = trainingData.concat(buildTrainingData(domTree, buildPromptWithDivs))
 
-        trainingData = trainingData.concat(enrichData(trainingData))
+        // trainingData = trainingData.concat(enrichData(trainingData))
         console.log(1, trainingData)
       },
     })
@@ -59,7 +59,7 @@ sendData1.addEventListener('click', function () {
           return
         }
 
-        const BABBAGE_MODEL = 'babbage:ft-personal:220323-divs-v5-2023-03-22-22-13-04'
+        const BABBAGE_MODEL = 'babbage:ft-personal:2503-v6-2023-03-25-16-35-55'
 
         console.log('Processing')
         openAIResponse = await getNestedStructure(trainingData, BABBAGE_MODEL)

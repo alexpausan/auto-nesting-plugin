@@ -82,7 +82,7 @@ const DIV_START = /^\[div/
 const PARENT_END = /^\]/
 const ELEMENT_END = /^\]/
 const DIV_PATERN_LENGTH = 4
-const CONTENT_ELEMENT = /^\[(\w+)\s*(x\w+)\s*(y\w+)\s*(w\w+)\s*(h\w+)/
+const CONTENT_ELEMENT = /^\[(\w+)\s*(top\w+)\s*(left\w+)\s*(width\w+)\s*(height\w+)/
 
 const DIV_ELEMENT = 'div'
 const LINK_ELEMENT = 'link'
@@ -97,8 +97,8 @@ function addOveralyToDom(rect, orientation) {
   el.classList.add('nesting-overlay')
   el.style.position = 'absolute'
   el.style.border = `4px dashed ${ORIENTATION_COLOR[orientation]}`
-  el.style.top = rect.y + 'px'
-  el.style.left = rect.x + 'px'
+  el.style.top = rect.top + 'px'
+  el.style.left = rect.left + 'px'
   el.style.width = rect.width + 'px'
   el.style.height = rect.height + 'px'
   el.style.visibility = 'visible'
@@ -138,20 +138,20 @@ function computeContainersRectAndOrientation(node = {}) {
     for (let i = 0; i < childrenRects.length; i++) {
       const childRect = childrenRects[i]
 
-      const { x, y, width, height } = childRect.rect
-      const right = x + width
-      const bottom = y + height
+      const { top, left, width, height } = childRect.rect
+      const bottom = top + height
+      const right = left + width
 
-      leftValues.push(x)
-      rightValues.push(right)
-      topValues.push(y)
+      topValues.push(top)
       bottomValues.push(bottom)
+      leftValues.push(left)
+      rightValues.push(right)
 
-      horizontalPosOfCenter.push(x + width / 2)
-      verticalPosOfCenter.push(y + height / 2)
+      verticalPosOfCenter.push(top + height / 2)
+      horizontalPosOfCenter.push(left + width / 2)
 
-      xEdges.push(x, right)
-      yEdges.push(y, bottom)
+      yEdges.push(top, bottom)
+      xEdges.push(left, right)
     }
 
     // First we get all the edges of the children, then we sort them
@@ -160,12 +160,12 @@ function computeContainersRectAndOrientation(node = {}) {
     leftValues.sort((a, b) => a - b)
     rightValues.sort((a, b) => a - b)
 
-    // X and Y are the smallest values of the children,
+    // Top and Left are the smallest values of the children,
     // Width and Height are the difference between the biggest right/bottom and the smallest top/left
-    let x = leftValues[0]
-    let y = topValues[0]
-    let width = rightValues[rightValues.length - 1] - x
-    let height = bottomValues[bottomValues.length - 1] - y
+    let minTop = topValues[0]
+    let minLeft = leftValues[0]
+    let maxHeight = bottomValues[bottomValues.length - 1] - minTop
+    let maxWidth = rightValues[rightValues.length - 1] - minLeft
 
     const payload = {
       topValues,
@@ -182,17 +182,19 @@ function computeContainersRectAndOrientation(node = {}) {
 
     // It's quite common for Anchor elements to have children bigger than themself
     if (type === LINK_ELEMENT) {
-      x = x < rect.x ? x : rect.x
-      y = y < rect.y ? y : rect.y
-      width = width > rect.width ? width : rect.width
-      height = height > rect.height ? height : rect.height
+      const { top, left, width, height } = rect
+
+      minTop = minTop < top ? minTop : top
+      minLeft = minLeft < left ? minLeft : left
+      maxHeight = maxHeight > height ? maxHeight : height
+      maxWidth = maxWidth > width ? maxWidth : width
     }
 
     rect = {
-      x,
-      y,
-      width,
-      height,
+      top: minTop,
+      left: minLeft,
+      height: maxHeight,
+      width: maxWidth,
     }
 
     node.rect = rect
@@ -250,17 +252,22 @@ function stringToTree(data) {
       return null
     }
 
+    TOP_PROP_LENGHT = 3
+    LEFT_PROP_LENGHT = 4
+    WIDTH_PROP_LENGHT = 5
+    HEIGHT_PROP_LENGHT = 6
+
     const elementType = match[1]
-    const x = parseInt(match[2].substring(1, match[2].length))
-    const y = parseInt(match[3].substring(1, match[3].length))
-    const width = parseInt(match[4].substring(1, match[4].length))
-    const height = parseInt(match[5].substring(1, match[5].length))
+    const top = parseInt(match[2].substring(TOP_PROP_LENGHT, match[2].length))
+    const left = parseInt(match[3].substring(LEFT_PROP_LENGHT, match[3].length))
+    const width = parseInt(match[4].substring(WIDTH_PROP_LENGHT, match[4].length))
+    const height = parseInt(match[5].substring(HEIGHT_PROP_LENGHT, match[5].length))
 
     const newNode = {
       type: elementType,
       rect: {
-        x,
-        y,
+        top,
+        left,
         width,
         height,
       },

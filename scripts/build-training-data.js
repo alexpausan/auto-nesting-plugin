@@ -23,7 +23,8 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   }
 
   // We override the top offset for elements so that we keep everything bellow 5000px
-  const topOffset = getTopOffset(node)
+  // const topOffset = getTopOffset(node)
+  const topOffset = 0
 
   prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
@@ -129,7 +130,7 @@ const includeThisDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 const isAbsolutePosOrUnaligned = (node) => {
   const { children, orientation, styles, rect } = node
-  const { top, left, width, height } = rect
+  const { top, width, height } = rect
 
   // If an el has orientation then it's a div, and if not aligned, we exclude it from the prompt
   if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
