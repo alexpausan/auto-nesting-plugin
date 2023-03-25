@@ -23,8 +23,7 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   }
 
   // We override the top offset for elements so that we keep everything bellow 5000px
-  // const topOffset = getTopOffset(node)
-  const topOffset = 0
+  const topOffset = getTopOffset(node)
 
   prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
@@ -38,7 +37,6 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   }
 
   if (prompt.match(NEGATIVE_NR) && !completion.match(NEGATIVE_NR)) {
-    console.log('NEGATIVE NR', prompt, completion)
     return null
   }
 
@@ -250,7 +248,6 @@ function divHasVisibleStyles(node) {
 
   for (const visibleStyle of STYLES_THAT_MAKE_DIV_VISIBLE) {
     if (styles[visibleStyle]) {
-      console.log(node?.node, styles[visibleStyle])
       return true
     }
   }
