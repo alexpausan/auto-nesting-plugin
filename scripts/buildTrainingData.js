@@ -125,7 +125,6 @@ const buildCompletion = (props) => {
 }
 
 const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
-const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 const includeThisDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 const isAbsolutePosOrUnaligned = (node) => {
@@ -180,8 +179,14 @@ const enrichData = (trainingData = []) => {
   for (let i = 0; i < trainingData.length; i++) {
     let { prompt, completion } = trainingData[i]
 
-    prompt = prompt.replace(/x(\d+)/g, (match, p1) => `x${getNewCoordinate(parseInt(p1))}`)
-    prompt = prompt.replace(/y(\d+)/g, (match, p1) => `y${getNewCoordinate(parseInt(p1))}`)
+    prompt = prompt.replace(
+      TOP_COORDINATE_REGEX,
+      (match, p1) => `top${getNewCoordinate(parseInt(p1))}`
+    )
+    prompt = prompt.replace(
+      LEFT_COORDINATE_REGEX,
+      (match, p1) => `left${getNewCoordinate(parseInt(p1))}`
+    )
 
     enrichedData[i] = { prompt, completion }
   }
@@ -194,7 +199,7 @@ const getNewCoordinate = (coordinate) => {
   return coordinate + delta < 0 ? 0 : coordinate + delta
 }
 
-const getRandomInt = (delta = SPACE_UNIT) => {
+const getRandomInt = (delta = DELTA_UNIT) => {
   const min = Math.ceil(-delta)
   const max = Math.floor(delta)
 

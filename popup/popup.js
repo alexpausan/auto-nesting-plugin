@@ -40,7 +40,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
         // const buildPromptWithDivs = true
         // trainingData = trainingData.concat(buildTrainingData(domTree, buildPromptWithDivs))
 
-        // trainingData = trainingData.concat(enrichData(trainingData))
+        trainingData = trainingData.concat(enrichData(trainingData))
         console.log(1, trainingData)
       },
     })

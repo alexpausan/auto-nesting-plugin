@@ -183,6 +183,8 @@ const NODE_NAME = {
 
 // ---- Prompt building constants ----
 
+const DELTA_UNIT = 4
+
 const MIN_PROMPT_LENGTH = 75
 const MAX_PROMPT_LENGTH = 6000
 
@@ -190,8 +192,6 @@ const NO_DATA = ''
 
 const GPT_END_OF_PROMPT = '###'
 const GPT_END_OF_COMPLETION = 'END'
-
-const SPACE_UNIT = 4
 
 const SCROLL_ADJUSTMENT_PERCENTAGE = 0.5
 const MIN_PAGE_SCROLL_WITHOUT_OFFSET = 3000
@@ -202,12 +202,13 @@ const MAX_OFFSET_FOR_REPOSITION = 3000
 const MIN_OFFSET_FOR_FOOTER = 600
 const NO_OFFSET = 0
 
-const INCLUDED_CONTENT_CHILD = 0.7
-
 const PROMPTS_TO_INCLUDE_DIVS = 0.3
 const DIV_PERCENTAGE = 0.5
 
 const NEGATIVE_NR = /[xy]-\d+/g
+
+const TOP_COORDINATE_REGEX = /top(\d+)/g
+const LEFT_COORDINATE_REGEX = /left(\d+)/g
 
 const DIV_LABELS = {
   DIV: 'div',
