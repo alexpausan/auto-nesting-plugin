@@ -64,12 +64,8 @@ const buildPrompt = (props) => {
     markForTesting({ node, hideElement: true })
     return NO_DATA
   }
-  markForTesting({ node })
 
-  if (nodeName !== NODE_NAME.TEXT) {
-    // TODO comment when running
-    node.node.style.outline = 'none'
-  }
+  markForTesting({ node })
 
   let result = `[${elType} ${rectData}]`
 
@@ -77,10 +73,13 @@ const buildPrompt = (props) => {
   if (elType === DIV_LABELS.DIV) {
     const divIsVisible = divHasVisibleStyles(node)
     const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
+    // markForTesting({ node, hideElement: !divIsVisible })
+    markForTesting({ node, hideElement: !divIsVisible && !includeThisDiv })
 
-    markForTesting({ node, hideElement: !divIsVisible })
-
-    result = !divIsVisible || !includeThisDiv ? NO_DATA : result
+    if (!divIsVisible && !includeThisDiv) {
+      // node.node.style.outline = 'none'
+      result = NO_DATA
+    }
   }
 
   if (!children?.length) {
@@ -242,9 +241,10 @@ const getTopOffset = (node) => {
 }
 
 function divHasVisibleStyles(node) {
-  const { styles, nodeName } = node
+  const { styles, nodeName, rect } = node
 
-  if (nodeName === NODE_NAME.BODY) {
+  // I limit to divs that are bellow 1000px, even if they have visible styles
+  if (nodeName === NODE_NAME.BODY || rect.height > 1000) {
     return
   }
 

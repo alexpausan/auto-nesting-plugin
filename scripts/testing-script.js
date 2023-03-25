@@ -297,7 +297,7 @@ function stringToTree(data) {
 }
 
 function markForTesting({ node, hideElement = false } = {}) {
-  let { nodeName, children, node: domNode } = node
+  let { nodeName, node: domNode } = node
 
   // If it's a #text node we need to get the parent
   domNode = nodeName === NODE_NAME.TEXT ? domNode.parentElement : domNode
