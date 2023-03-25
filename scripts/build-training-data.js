@@ -56,27 +56,31 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
 
 const buildPrompt = (props) => {
   const { node, topOffset, buildPromptWithDivs = false } = props
-  const { nodeName, children, styles } = node
+  const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, topOffset)
-
-  markForTesting({ node })
 
   if (isAbsolutePosOrUnaligned(node)) {
     markForTesting({ node, hideElement: true })
     return NO_DATA
   }
+  markForTesting({ node })
+
+  if (nodeName !== NODE_NAME.TEXT) {
+    // TODO comment when running
+    node.node.style.outline = 'none'
+  }
 
   let result = `[${elType} ${rectData}]`
 
   // Divs that are not visibly distinguisable from the background, may be included in the prompt or not
-  if (elType === DIV_LABELS.DIV && !stylesHaveVisibleBackgroundOrBorder(styles)) {
-    const includeElement = buildPromptWithDivs && includeThisDivInPrompt()
+  if (elType === DIV_LABELS.DIV) {
+    const divIsVisible = divHasVisibleStyles(node)
+    const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
 
-    if (!includeElement) {
-      result = NO_DATA
-      markForTesting({ node, hideElement: true })
-    }
+    markForTesting({ node, hideElement: !divIsVisible })
+
+    result = !divIsVisible || !includeThisDiv ? NO_DATA : result
   }
 
   if (!children?.length) {
@@ -237,12 +241,16 @@ const getTopOffset = (node) => {
   return NO_OFFSET
 }
 
-function stylesHaveVisibleBackgroundOrBorder(styles) {
-  // TODO -> change to include the rect data for the divs once the scraper is updated
-  return false
+function divHasVisibleStyles(node) {
+  const { styles, nodeName } = node
 
-  for (const visibleStyle of STYLES_TO_CHECK_VISIBILITY) {
+  if (nodeName === NODE_NAME.BODY) {
+    return
+  }
+
+  for (const visibleStyle of STYLES_THAT_MAKE_DIV_VISIBLE) {
     if (styles[visibleStyle]) {
+      console.log(node?.node, styles[visibleStyle])
       return true
     }
   }

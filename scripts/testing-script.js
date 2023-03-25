@@ -316,7 +316,4 @@ function markForTesting({ node, hideElement = false } = {}) {
 
   domNode.style.background = 'rgba(0, 0, 0, 0.1)'
   // We hide the container elements
-  if (CONTAINER_TAGS[nodeName] && children) {
-    domNode.style.visibility = 'hidden'
-  }
 }

@@ -162,7 +162,6 @@ const DEFAULT_STYLES = {
   'box-shadow': 'none',
   'outline-style': 'none',
   'outline-width': '0px',
-  'outline-style': 'none',
   padding: '0px',
   margin: '0px',
   position: 'static',
@@ -179,6 +178,7 @@ const NODE_NAME = {
   SVG: 'svg',
   SELECT: 'SELECT',
   ANCHOR: 'A',
+  BODY: 'BODY',
 }
 
 // ---- Prompt building constants ----
@@ -273,12 +273,12 @@ const ORIENTATION_COLOR = {
   [ORIENTATION.NOT_ALIGNED]: 'black',
 }
 
-const STYLES_TO_CHECK_VISIBILITY = {
-  'border-width': true,
-  'border-style': true,
-  'outline-width': true,
-  'outline-style': true,
-  'box-shadow': true,
-  'background-image': true,
-  'background-color': true,
-}
+const STYLES_THAT_MAKE_DIV_VISIBLE = [
+  'border-width',
+  'border-style',
+  'outline-width',
+  'outline-style',
+  'box-shadow',
+  'background-image',
+  'background-color',
+]

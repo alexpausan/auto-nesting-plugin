@@ -12,24 +12,14 @@ function getDOMData() {
   return result
 }
 
-function getTreeData(node) {
+function getTreeData(treeNode) {
   // Omit div in div, until we find a container with multiple children or we reach a content node
-  let children = skipSingleDivChild(node)
+  let { node, children } = getContainerWithMultipleChildrenOrContent(treeNode)
 
-  if (CONTAINER_TAGS[node.nodeName]) {
-    // We skip divs without children and who are either Not visible or not Slot elements (absolute children)
-    if (
-      children?.length === 0 &&
-      !divHasVisibleBackgroundOrBorder(node) &&
-      !hasAbsoluteChild(node)
-    ) {
-      return
-    }
-
-    // In case we have a container node with one child, we skip it and use the child instead
-    if (children?.length === 1) {
-      node = children[0]
-      children = skipSingleDivChild(node)
+  // We skip divs without children and who are either Not visible or not Slot elements (absolute children)
+  if (CONTAINER_TAGS[node.nodeName] && !children?.length) {
+    if (!divHasVisibleBackgroundOrBorder(node) && !hasAbsoluteChild(node)) {
+      return null
     }
   }
 
@@ -165,21 +155,35 @@ function getNodeClassList(node, nodeName) {
 
 // If we have DIV IN DIV, we skip the intermediate divs, until we find a container with multiple
 // children or we reach the content
-function skipSingleDivChild(node) {
+function getContainerWithMultipleChildrenOrContent(node) {
   let { childNodes, nodeName } = node
 
   if (nodeName === NODE_NAME.TEXT) {
-    return
+    return { node }
   }
 
   let children = filterChildrenToCriteria(Array.from(childNodes))
 
-  // If the node has only one child, and that child is a container, we continue
-  if (children?.length === 1 && CONTAINER_TAGS[children[0]?.nodeName]) {
-    return skipSingleDivChild(children[0])
+  if (!children?.length) {
+    return { node }
   }
 
-  return children
+  if (CONTENT_TAGS[nodeName]) {
+    return {
+      node,
+      children,
+    }
+  }
+
+  // If the node is a container with only one child, we continue
+  if (CONTAINER_TAGS[nodeName] && children?.length === 1) {
+    return getContainerWithMultipleChildrenOrContent(children[0])
+  }
+
+  return {
+    node,
+    children,
+  }
 }
 
 // Only for scraping

@@ -15,7 +15,7 @@ getTree.addEventListener('click', function () {
       target: { tabId: tabs[0].id },
       function: () => {
         domTree = getDOMData()
-        console.log(0, domTree)
+        console.log(0, domTree.children)
 
         // chrome.storage.local.set({ domTree })
       },

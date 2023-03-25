@@ -18,7 +18,7 @@
   "content_scripts": [
     {
       "js": [
-        "scripts/constants.js",
+        "scripts/plugin-constants.js",
         "scripts/testing-script.js",
         "scripts/plugin-scraper.js",
         "scripts/build-training-data.js"
