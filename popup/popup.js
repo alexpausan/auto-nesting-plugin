@@ -6,7 +6,7 @@ const sendData2 = document.getElementById('send-data-2')
 const reprocessResponse = document.getElementById('reprocess-response')
 
 let domTree
-let flatStructure
+let trainingData
 let openAIResponse
 
 getTree.addEventListener('click', function () {
@@ -32,9 +32,16 @@ buildTrainingDataBtn.addEventListener('click', function () {
           console.log('No domTree')
         }
 
-        flatStructure = buildTrainingData(domTree)
-        // flatStructure = enrichData(flatStructure)
-        console.log(1, flatStructure)
+        trainingData = buildTrainingData(domTree)
+
+        // TODO update the scraper to include the immediate parent div,
+        // So that I can include those divs too in the training data
+
+        // const buildPromptWithDivs = true
+        // trainingData = trainingData.concat(buildTrainingData(domTree, buildPromptWithDivs))
+
+        // trainingData = trainingData.concat(enrichData(trainingData))
+        console.log(1, trainingData)
       },
     })
   })
@@ -48,14 +55,14 @@ sendData1.addEventListener('click', function () {
       target: { tabId: currentTab.id },
       args: [{ url: currentTab.url }],
       function: async ({ url }) => {
-        if (!flatStructure) {
+        if (!trainingData) {
           return
         }
 
         const BABBAGE_MODEL = 'babbage:ft-personal:220323-divs-v5-2023-03-22-22-13-04'
 
         console.log('Processing')
-        openAIResponse = await getNestedStructure(flatStructure, BABBAGE_MODEL)
+        openAIResponse = await getNestedStructure(trainingData, BABBAGE_MODEL)
 
         chrome.storage.local.set({ [url]: openAIResponse })
       },
@@ -71,14 +78,14 @@ sendData2.addEventListener('click', function () {
       target: { tabId: currentTab.id },
       args: [{ url: currentTab.url }],
       function: async ({ url }) => {
-        if (!flatStructure) {
+        if (!trainingData) {
           return
         }
 
         const CURIE_MODEL = 'curie:ft-personal:100323-curie-divs-2023-03-10-20-07-58'
 
         console.log('Processing')
-        openAIResponse = await getNestedStructure(flatStructure, CURIE_MODEL)
+        openAIResponse = await getNestedStructure(trainingData, CURIE_MODEL)
 
         chrome.storage.local.set({ [url]: openAIResponse })
       },

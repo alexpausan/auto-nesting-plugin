@@ -289,7 +289,7 @@ function stringToTree(data) {
   return root
 }
 
-function markForTesting({ node, hideElement = false, includeElement = false } = {}) {
+function markForTesting({ node, hideElement = false } = {}) {
   let { nodeName, children, node: domNode } = node
 
   // If it's a #text node we need to get the parent
@@ -309,7 +309,7 @@ function markForTesting({ node, hideElement = false, includeElement = false } = 
 
   domNode.style.background = 'rgba(0, 0, 0, 0.1)'
   // We hide the container elements
-  if (CONTAINER_TAGS[nodeName] && !includeElement && children) {
+  if (CONTAINER_TAGS[nodeName] && children) {
     domNode.style.visibility = 'hidden'
   }
 }

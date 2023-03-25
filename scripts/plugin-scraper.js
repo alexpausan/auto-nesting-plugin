@@ -18,7 +18,11 @@ function getTreeData(node) {
 
   if (CONTAINER_TAGS[node.nodeName]) {
     // We skip divs without children and who are either Not visible or not Slot elements (absolute children)
-    if (children?.length === 0 && !isDivVisible(node) && !hasAbsoluteChild(node)) {
+    if (
+      children?.length === 0 &&
+      !divHasVisibleBackgroundOrBorder(node) &&
+      !hasAbsoluteChild(node)
+    ) {
       return
     }
 
@@ -109,32 +113,43 @@ function addOffsetToRect(rect) {
 }
 
 function getCSSProperties(node, nodeName) {
-  const styles = {}
-  let properties = STYLE_PROPERTIES.COMMON
-
   if (nodeName === NODE_NAME.TEXT) {
-    const computedStyles = getComputedStyle(node.parentNode)
-
-    for (const property of properties) {
-      styles[property] = computedStyles.getPropertyValue(property)
-    }
+    const parentStyles = getComputedStyle(node.parentNode)
+    const fontSizeProp = STYLE_PROPERTIES.TEXT_NODES
 
     return {
-      ...styles,
+      [fontSizeProp]: parentStyles.getPropertyValue(fontSizeProp),
       position: 'static',
       display: 'inline',
     }
   }
 
-  const computedStyles = getComputedStyle(node)
+  const styles = {}
 
-  // If node is container we add the container properties
+  const computedStyles = getComputedStyle(node)
+  const display = computedStyles.getPropertyValue('display').trim()
+
+  let properties = STYLE_PROPERTIES.COMMON
+
+  if (display === DISPLAY_FLEX) {
+    properties = properties.concat(STYLE_PROPERTIES.FLEX)
+  }
+
+  if (display === DISPLAY_GRID) {
+    properties = properties.concat(STYLE_PROPERTIES.GRID)
+  }
+
   if (CONTAINER_TAGS[nodeName]) {
     properties = properties.concat(STYLE_PROPERTIES.CONTAINER)
   }
 
   for (const property of properties) {
-    styles[property] = computedStyles.getPropertyValue(property)
+    const propertyValue = computedStyles.getPropertyValue(property).trim()
+    const defaultValue = DEFAULT_STYLES[property]
+
+    if (propertyValue && propertyValue !== defaultValue) {
+      styles[property] = propertyValue
+    }
   }
 
   return styles
@@ -173,19 +188,19 @@ function filterChildrenToCriteria(childNodes = []) {
     const { nodeName, parentNode, childNodes } = child
 
     if (nodeName === NODE_NAME.TEXT && CONTAINER_TAGS[parentNode.nodeName]) {
-      return isWithinViewport(child)
+      return isElementVisibleAndInViewport(child)
     }
 
     // Check content elements are visible
     if (CONTENT_TAGS[nodeName]) {
-      return isWithinViewport(child) && !hasAbsolutePosition(child)
+      return isElementVisibleAndInViewport(child) && !hasAbsolutePosition(child)
     }
 
     if (CONTAINER_TAGS[nodeName]) {
       return (
-        isWithinViewport(child) &&
+        isElementVisibleAndInViewport(child) &&
         !hasAbsolutePosition(child) &&
-        (childNodes?.length || isDivVisible(child))
+        (childNodes?.length || divHasVisibleBackgroundOrBorder(child))
       )
     }
   })
@@ -207,7 +222,7 @@ function getOrientation(nodesList) {
   const parentWrap = parentStyle.getPropertyValue('flex-wrap')
   const parentDisplay = parentStyle.getPropertyValue('display')
 
-  if (parentDisplay === 'flex') {
+  if (parentDisplay === DISPLAY_FLEX) {
     if (parentFlexDirection === 'row' || parentFlexDirection === 'row-reverse') {
       return parentWrap === 'wrap' ? ORIENTATION.ROW_WR : ORIENTATION.ROW
     }
@@ -418,7 +433,7 @@ function hasAbsolutePosition(node) {
   return false
 }
 
-function isWithinViewport(node) {
+function isElementVisibleAndInViewport(node) {
   // We exclude text nodes that have no content
   if (node.nodeName === NODE_NAME.TEXT && !node.textContent.trim()) {
     return false
@@ -430,7 +445,7 @@ function isWithinViewport(node) {
 
   // We include the ones that have display contents
   if (styles.display === 'contents') {
-    node.style.display = 'flex'
+    node.style.display = DISPLAY_FLEX
     return true
   }
 
@@ -495,25 +510,27 @@ function arrayHasDuplicates(arr) {
   return false // no duplicates found
 }
 
-function isDivVisible(element) {
-  const style = getComputedStyle(element)
+function divHasVisibleBackgroundOrBorder(node) {
+  const style = getComputedStyle(node)
 
   const hasVisibleBorder = style.borderStyle !== 'none' && style.borderWidth !== '0px'
   const hasVisibleOutline = style.outlineStyle !== 'none' && style.outlineWidth !== '0px'
+  const hasVisibleBoxShadow = style.boxShadow !== 'none'
+  const hasBackgroundImage = style.backgroundImage !== 'none'
+  const hasVisibleBackground =
+    style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)'
 
-  if (
-    (style.backgroundColor !== 'transparent' && style.backgroundColor !== 'rgba(0, 0, 0, 0)') ||
+  return (
     hasVisibleBorder ||
-    hasVisibleOutline
-  ) {
-    return true
-  }
-
-  return false
+    hasVisibleOutline ||
+    hasVisibleBoxShadow ||
+    hasBackgroundImage ||
+    hasVisibleBackground
+  )
 }
 
-function hasAbsoluteChild(element) {
-  for (const child of element.children) {
+function hasAbsoluteChild(node) {
+  for (const child of node.children) {
     const style = window.getComputedStyle(child)
     if (style.position === 'absolute') {
       return true

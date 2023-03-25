@@ -1,4 +1,4 @@
-const buildTrainingData = (node = {}) => {
+const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   if (!node) {
     return
   }
@@ -16,33 +16,35 @@ const buildTrainingData = (node = {}) => {
     }
 
     const childrenTrainingSet = children.map((child) => {
-      return buildTrainingData(child)
+      return buildTrainingData(child, buildPromptWithDivs)
     })
 
     return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
-  const includeContentChild = includeChildrenOfContentEl()
-  const includeDivs = shouldPromptIncludeDivs()
-
   // We override the top offset for elements so that we keep everything bellow 5000px
-  node.rect.top = getTopOffsetOverride(node)
+  const topOffset = getTopOffset(node)
 
-  prompt = buildPrompt({ node, includeContentChild, includeDivs })
+  prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, includeContentChild })
+  completion = buildCompletion({ node, topOffset })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
-  if (prompt?.length < MIN_CHARS || completion?.length < MIN_CHARS) {
+  if (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) {
+    return null
+  }
+
+  if (prompt.match(NEGATIVE_NR) && !completion.match(NEGATIVE_NR)) {
+    console.log('NEGATIVE NR', prompt, completion)
     return null
   }
 
   // If the prompt is too long, we get the training data from the children
-  if (prompt.length + completion.length > MAX_CHARS) {
+  if (prompt.length + completion.length > MAX_PROMPT_LENGTH) {
     const childrenTrainingSet = children.map((child) => {
-      return buildTrainingData(child)
+      return buildTrainingData(child, buildPromptWithDivs)
     })
 
     return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
@@ -52,32 +54,35 @@ const buildTrainingData = (node = {}) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, includeContentChild = true, topOffsetOverride, includeDivs = false } = props
-  const { nodeName, children } = node
+  const { node, topOffset, buildPromptWithDivs = false } = props
+  const { nodeName, children, styles } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, topOffsetOverride)
+  const { elType, rectData } = getElTypeAndRectData(node, topOffset)
+
+  markForTesting({ node })
 
   if (isAbsolutePosOrUnaligned(node)) {
-    // markForTesting({ node, hideElement: true })
+    markForTesting({ node, hideElement: true })
     return NO_DATA
   }
 
-  let includeElement
   let result = `[${elType} ${rectData}]`
 
-  if (elType === DIV_LABELS.DIV) {
-    includeElement = includeDivs && includeDivInPrompt()
+  // Divs that are not visibly distinguisable from the background, may be included in the prompt or not
+  if (elType === DIV_LABELS.DIV && !stylesHaveVisibleBackgroundOrBorder(styles)) {
+    const includeElement = buildPromptWithDivs && includeThisDivInPrompt()
 
-    result = includeElement ? result : NO_DATA
+    if (!includeElement) {
+      result = NO_DATA
+      markForTesting({ node, hideElement: true })
+    }
   }
-
-  markForTesting({ node, includeElement })
 
   if (!children?.length) {
     return result
   }
 
-  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
+  if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
     return result
   }
 
@@ -89,16 +94,18 @@ const buildPrompt = (props) => {
 }
 
 const buildCompletion = (props) => {
-  const { node, includeContentChild = true, topOffsetOverride } = props
+  const { node, topOffset } = props
   const { nodeName, children } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, topOffsetOverride)
+  const { elType, rectData } = getElTypeAndRectData(node, topOffset)
 
   if (isAbsolutePosOrUnaligned(node)) {
     return NO_DATA
   }
 
-  // TODO -> change to include the rect data for the divs?
+  // TODO -> change to include the rect data for the divs
+  // let result = `[${elType} ${rectData}`
+
   let result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
@@ -106,7 +113,7 @@ const buildCompletion = (props) => {
     return `${result}]`
   }
 
-  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
+  if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
     return `${result}]`
   }
 
@@ -116,7 +123,12 @@ const buildCompletion = (props) => {
 
   return `${result}]`
 }
-function isAbsolutePosOrUnaligned(node) {
+
+const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
+const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
+const includeThisDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
+
+const isAbsolutePosOrUnaligned = (node) => {
   const { children, orientation, styles, rect } = node
   const { top, left, width, height } = rect
 
@@ -142,19 +154,13 @@ function isAbsolutePosOrUnaligned(node) {
   }
 }
 
-const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
-
-const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
-
-const shouldPromptIncludeDivs = () => Math.random() < PROMPTS_TO_INCLUDE_DIVS
-const includeDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
-
 // In this version we don't take the orientation into account
-const getElTypeAndRectData = (node) => {
+const getElTypeAndRectData = (node, topOffset = 0) => {
   const { nodeName: tag, rect, children } = node
   const { top, left, width, height } = rect
 
-  const rectData = `top${top} left${left} width${width} height${height}`
+  // const rectData = `x${left} y${top} w${width} h${height}`
+  const rectData = `top${top - topOffset} left${left} width${width} height${height}`
 
   const elType = CONTAINER_TAGS[tag]
     ? children
@@ -168,14 +174,8 @@ const getElTypeAndRectData = (node) => {
   }
 }
 
-function enrichData(trainingData = []) {
+const enrichData = (trainingData = []) => {
   const enrichedData = []
-  const negativeNrPattern = /[xy]-\d+/g
-
-  trainingData = trainingData.filter((data) => {
-    const { prompt, completion } = data
-    return !prompt.match(negativeNrPattern) && !completion.match(negativeNrPattern)
-  })
 
   for (let i = 0; i < trainingData.length; i++) {
     let { prompt, completion } = trainingData[i]
@@ -186,42 +186,58 @@ function enrichData(trainingData = []) {
     enrichedData[i] = { prompt, completion }
   }
 
-  return trainingData.concat(enrichedData)
+  return enrichedData
 }
 
-function getNewCoordinate(coordinate) {
+const getNewCoordinate = (coordinate) => {
   const delta = getRandomInt()
   return coordinate + delta < 0 ? 0 : coordinate + delta
 }
 
-function getRandomInt(delta = SPACE_UNIT) {
+const getRandomInt = (delta = SPACE_UNIT) => {
   const min = Math.ceil(-delta)
   const max = Math.floor(delta)
 
   return Math.floor(Math.random() * (max - min) + min)
 }
 
-function getRandomIntInRange(min, max) {
+const getRandomIntInRange = (min, max) => {
   return Math.floor(Math.random() * (max - min + 1)) + min
 }
 
 // I don't want to train the model with huge top offsets
-function getTopOffsetOverride(node) {
+const getTopOffset = (node) => {
   const { rect, nodeName = '', classList = '' } = node
   const { top } = rect
 
   if (nodeName.toLowerCase().includes('footer') || classList?.toLowerCase().includes('footer')) {
-    return getRandomIntInRange(MIN_OFfSET_FOR_FOOTER, MAX_PAGE_SCROLL_WITHOUT_OFFSET)
+    const footerOffset = getRandomIntInRange(MIN_OFFSET_FOR_FOOTER, MAX_OFFSET_FOR_REPOSITION)
+
+    return top > MIN_PAGE_SCROLL_WITHOUT_OFFSET ? top - footerOffset : top
   }
 
+  // All elements above 5000px receive an offset
   if (top > MAX_PAGE_SCROLL_WITHOUT_OFFSET) {
-    return getRandomIntInRange(MIN_OFFSET_FOR_REPOSITION, MAX_PAGE_SCROLL_WITHOUT_OFFSET)
+    return top - getRandomIntInRange(MIN_OFFSET_FOR_REPOSITION, MAX_PAGE_SCROLL_WITHOUT_OFFSET)
   }
 
-  const adjustScroll = adjustScrollPosition()
-  if (top > MIN_PAGE_SCROLL_WITHOUT_OFFSET && adjustScroll) {
-    return getRandomIntInRange(MIN_OFFSET_FOR_REPOSITION, top)
+  if (top > MIN_PAGE_SCROLL_WITHOUT_OFFSET) {
+    const adjustScroll = adjustScrollPosition()
+    const offset = getRandomIntInRange(NO_OFFSET, top - MIN_OFFSET_FOR_REPOSITION)
+
+    return adjustScroll ? top - offset : NO_OFFSET
   }
 
-  return top
+  return NO_OFFSET
+}
+
+function stylesHaveVisibleBackgroundOrBorder(styles) {
+  // TODO -> change to include the rect data for the divs once the scraper is updated
+  return false
+
+  for (const visibleStyle of STYLES_TO_CHECK_VISIBILITY) {
+    if (styles[visibleStyle]) {
+      return true
+    }
+  }
 }
