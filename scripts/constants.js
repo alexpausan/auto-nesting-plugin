@@ -128,6 +128,7 @@ const DISPLAY_GRID = 'grid'
 const DIV_LABELS = {
   DIV: 'div',
   SLOT: 'slot',
+  PROXY: 'proxy',
 }
 
 const ORIENTATION_LABEL = {

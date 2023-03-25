@@ -22,15 +22,14 @@ const buildTrainingData = (node = {}) => {
     return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
-  const includeContentChild = includeChildrenOfContentEl()
-  const includeDivs = shouldPromptIncludeDivs()
-  console.log(includeDivs)
+  // We normalize the individual container's position to the top left of the page half of the time
+  // And for first level children, we only adjust for the page's scroll position half of the time
 
   // First try is to get the trainig data for the body / root node
-  prompt = buildPrompt({ node, includeContentChild, includeDivs })
+  prompt = buildPrompt({ node })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, includeContentChild })
+  completion = buildCompletion({ node })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -50,32 +49,31 @@ const buildTrainingData = (node = {}) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, includeContentChild = true, posAdjustment, includeDivs = false } = props
+  const { node, posAdjustment } = props
   const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
+
+  markForTesting({ node })
 
   if (isAbsolutePosOrUnaligned(node)) {
     markForTesting({ node, hideElement: true })
     return NO_DATA
   }
 
-  let includeElement
   let result = `[${elType} ${rectData}]`
 
   if (elType === DIV_LABELS.DIV) {
-    includeElement = includeDivs && includeDivInPrompt()
+    result = NO_DATA
 
-    result = includeElement ? result : NO_DATA
+    markForTesting({ node, hideElement: true })
   }
-
-  markForTesting({ node, includeElement })
 
   if (!children?.length) {
     return result
   }
 
-  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
+  if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
     return result
   }
 
@@ -87,7 +85,7 @@ const buildPrompt = (props) => {
 }
 
 const buildCompletion = (props) => {
-  const { node, includeContentChild = true, posAdjustment } = props
+  const { node, posAdjustment } = props
   const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, posAdjustment)
@@ -103,7 +101,7 @@ const buildCompletion = (props) => {
     return `${result}]`
   }
 
-  if (CONTENT_TAGS[nodeName] && (nodeName !== NODE_NAME.ANCHOR || !includeContentChild)) {
+  if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
     return `${result}]`
   }
 
@@ -143,22 +141,21 @@ const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
 const includeChildrenOfContentEl = () => Math.random() <= INCLUDED_CONTENT_CHILD
 
-const shouldPromptIncludeDivs = () => Math.random() < PROMPTS_TO_INCLUDE_DIVS
-const includeDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
+const includeContainerInPrompt = (divPercentage) =>
+  Math.random() < FIFTY_PERCENT ? (Math.random() <= divPercentage ? DIV_PERCENTAGE : 0) : 0
 
 // In this version we don't take the orientation into account
 const getElTypeAndRectData = (node, posAdjustment = {}) => {
   const { nodeName: tag, rect, children } = node
   const { leftAdj = 0, topAdj = 0 } = posAdjustment
-  const { top, left, width, height } = rect
 
   const elType = CONTAINER_TAGS[tag]
     ? children
       ? DIV_LABELS.DIV
-      : DIV_LABELS.SLOT
+      : DIV_LABELS.PROXY
     : CONTENT_TAG_LABEL[tag]
 
-  const rectData = `top${top - topAdj} left${left - leftAdj} width${width} height${height}`
+  const rectData = `x${rect.left - leftAdj} y${rect.top - topAdj} w${rect.width} h${rect.height}`
 
   return {
     elType,
