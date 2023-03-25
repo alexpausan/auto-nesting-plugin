@@ -32,7 +32,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
           console.log('No domTree')
         }
 
-        trainingData = buildTrainingData(domTree)
+        trainingData = buildTrainingData(domTree, true)
 
         // TODO update the scraper to include the immediate parent div,
         // So that I can include those divs too in the training data
