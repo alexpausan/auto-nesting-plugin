@@ -1,3 +1,8 @@
+const TOP_PROP_LENGHT = 3
+const LEFT_PROP_LENGHT = 4
+const WIDTH_PROP_LENGHT = 5
+const HEIGHT_PROP_LENGHT = 6
+
 async function getNestedStructure(flatStructure, model) {
   if (!flatStructure) {
     return
@@ -43,7 +48,7 @@ async function getNestedStructure(flatStructure, model) {
           const { choices = [] } = response
           let { text = '' } = choices[0]
 
-          processOpenAIResponse(text)
+          processOpenAIResponse(text, model)
           resolve(text)
         })
         .catch((error) => console.error(error))
@@ -60,13 +65,13 @@ async function getNestedStructure(flatStructure, model) {
   return allResponses
 }
 
-function processOpenAIResponse(text) {
+function processOpenAIResponse(text, model) {
   if (!text.length) {
     return
   }
 
   text = text.trim() + ']]'
-  const tree = stringToTree(text)
+  let tree = stringToTree(text)
 
   console.log({ text }, tree)
 
@@ -74,15 +79,14 @@ function processOpenAIResponse(text) {
     return
   }
 
-  const treeWithRect = computeContainersRectAndOrientation(tree)
-  drawResults(treeWithRect)
+  drawResults(tree)
 }
 
 const DIV_START = /^\[div/
 const PARENT_END = /^\]/
 const ELEMENT_END = /^\]/
 const DIV_PATERN_LENGTH = 4
-const CONTENT_ELEMENT = /^\[(\w+)\s*(top\w+)\s*(left\w+)\s*(width\w+)\s*(height\w+)/
+const ELEMENT_CONTENT = /^\[(\w+)\s*(top\w+)\s*(left\w+)\s*(width\w+)\s*(height\w+)/
 
 const DIV_ELEMENT = 'div'
 const LINK_ELEMENT = 'link'
@@ -121,6 +125,12 @@ function drawResults(tree) {
 
 function computeContainersRectAndOrientation(node = {}) {
   let { type, rect, children } = node
+
+  // For this situation we will get the coordinates from openAI
+  const { top, left, width, height } = rect
+  if (top !== undefined && left !== undefined && width !== undefined && height !== undefined) {
+    return node
+  }
 
   const topValues = []
   const bottomValues = []
@@ -219,11 +229,14 @@ function stringToTree(data) {
     let currentText = data.substring(index)
 
     if (DIV_START.test(currentText)) {
+      const match = currentText.match(ELEMENT_CONTENT)
+      const rect = getNodeRectFromString(match)
+
       if (!root) {
-        root = { type: DIV_ELEMENT, children: [] }
+        root = { type: DIV_ELEMENT, children: [], rect }
         currentNode = root
       } else {
-        const newNode = { type: DIV_ELEMENT, children: [] }
+        const newNode = { type: DIV_ELEMENT, children: [], rect }
 
         if (!currentNode) {
           currentNode = root
@@ -246,31 +259,11 @@ function stringToTree(data) {
       continue
     }
 
-    const match = currentText.match(CONTENT_ELEMENT)
+    const match = currentText.match(ELEMENT_CONTENT)
+    const elementType = match[1]
 
     if (!match) {
       return null
-    }
-
-    TOP_PROP_LENGHT = 3
-    LEFT_PROP_LENGHT = 4
-    WIDTH_PROP_LENGHT = 5
-    HEIGHT_PROP_LENGHT = 6
-
-    const elementType = match[1]
-    const top = parseInt(match[2].substring(TOP_PROP_LENGHT, match[2].length))
-    const left = parseInt(match[3].substring(LEFT_PROP_LENGHT, match[3].length))
-    const width = parseInt(match[4].substring(WIDTH_PROP_LENGHT, match[4].length))
-    const height = parseInt(match[5].substring(HEIGHT_PROP_LENGHT, match[5].length))
-
-    const newNode = {
-      type: elementType,
-      rect: {
-        top,
-        left,
-        width,
-        height,
-      },
     }
 
     index += match[0].length
@@ -294,6 +287,20 @@ function stringToTree(data) {
   }
 
   return root
+}
+
+function getNodeRectFromString(match) {
+  const top = parseInt(match[2].substring(TOP_PROP_LENGHT, match[2].length))
+  const left = parseInt(match[3].substring(LEFT_PROP_LENGHT, match[3].length))
+  const width = parseInt(match[4].substring(WIDTH_PROP_LENGHT, match[4].length))
+  const height = parseInt(match[5].substring(HEIGHT_PROP_LENGHT, match[5].length))
+
+  return {
+    top,
+    left,
+    width,
+    height,
+  }
 }
 
 function markForTesting({ node, hideElement = false } = {}) {
