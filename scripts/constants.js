@@ -179,8 +179,8 @@ const NODE_NAME = {
   ANCHOR: 'A',
 }
 
-const MIN_CHARS = 100
-const MAX_CHARS = 6000
+const MIN_CHARS = 0
+const MAX_CHARS = 4000
 
 const NO_DATA = ''
 
