@@ -1,4 +1,4 @@
-const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
+const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
   if (!node) {
     return
   }
@@ -28,7 +28,7 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, topOffset })
+  completion = buildCompletion({ node, topOffset, version })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -96,7 +96,7 @@ const buildPrompt = (props) => {
 }
 
 const buildCompletion = (props) => {
-  const { node, topOffset } = props
+  const { node, topOffset, version } = props
   const { nodeName, children } = node
 
   const { elType, rectData } = getElTypeAndRectData(node, topOffset)
@@ -106,9 +106,13 @@ const buildCompletion = (props) => {
   }
 
   // TODO -> change to include the rect data for the divs
-  // let result = `[${elType} ${rectData}`
+  let result
 
-  let result = `[${elType} ${rectData}`
+  if (version === 'v8') {
+    result = `[${elType} ${rectData}`
+  } else {
+    result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
+  }
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {

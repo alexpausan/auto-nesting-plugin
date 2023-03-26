@@ -3,7 +3,7 @@ const LEFT_PROP_LENGHT = 4
 const WIDTH_PROP_LENGHT = 5
 const HEIGHT_PROP_LENGHT = 6
 
-async function getNestedStructure(flatStructure, model) {
+async function getNestedStructure(flatStructure, model, version) {
   if (!flatStructure) {
     return
   }
@@ -48,7 +48,7 @@ async function getNestedStructure(flatStructure, model) {
           const { choices = [] } = response
           let { text = '' } = choices[0]
 
-          processOpenAIResponse(text, model)
+          processOpenAIResponse(text, version)
           resolve(text)
         })
         .catch((error) => console.error(error))
@@ -65,7 +65,7 @@ async function getNestedStructure(flatStructure, model) {
   return allResponses
 }
 
-function processOpenAIResponse(text, model) {
+function processOpenAIResponse(text, version) {
   if (!text.length) {
     return
   }
@@ -77,6 +77,10 @@ function processOpenAIResponse(text, model) {
 
   if (!tree) {
     return
+  }
+
+  if (version !== 'v8') {
+    tree = computeContainersRectAndOrientation(tree)
   }
 
   drawResults(tree)
@@ -249,7 +253,7 @@ function stringToTree(data) {
         currentNode = newNode
       }
 
-      index += DIV_PATERN_LENGTH
+      index += match[0].length
       continue
     }
 
