@@ -23,7 +23,8 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
   }
 
   // We override the top offset for elements so that we keep everything bellow 5000px
-  const topOffset = getTopOffset(node)
+  // const topOffset = getTopOffset(node)
+  const topOffset = 0
 
   prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`

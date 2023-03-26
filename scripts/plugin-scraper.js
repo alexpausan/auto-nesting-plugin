@@ -62,8 +62,8 @@ function getTreeData(treeNode) {
     result.orientation = orientation
 
     // TODO comment when scraping - > Mark it for testing purposes
-    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
-    node.style.outlineOffset = '-4px'
+    // node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
+    // node.style.outlineOffset = '-4px'
   }
 
   result.children = []

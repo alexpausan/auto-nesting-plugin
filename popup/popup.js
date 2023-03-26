@@ -32,7 +32,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
           console.log('No domTree')
         }
 
-        trainingData = buildTrainingData(domTree, true)
+        trainingData = buildTrainingData(domTree, false)
 
         // TODO update the scraper to include the immediate parent div,
         // So that I can include those divs too in the training data
@@ -59,12 +59,12 @@ sendData1.addEventListener('click', function () {
           return
         }
 
-        const BABBAGE_MODEL = 'babbage:ft-personal:2503-v6-2023-03-25-16-35-55'
+        const BABBAGE_MODEL = 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43'
 
         console.log('Processing')
         openAIResponse = await getNestedStructure(trainingData, BABBAGE_MODEL)
 
-        chrome.storage.local.set({ [url]: openAIResponse })
+        chrome.storage.local.set({ [`v7-${url}`]: openAIResponse })
       },
     })
   })
@@ -101,7 +101,7 @@ reprocessResponse.addEventListener('click', function () {
       target: { tabId: currentTab.id },
       args: [{ url: currentTab.url }],
       function: async ({ url }) => {
-        const storageData = await chrome.storage.local.get([url])
+        const storageData = await chrome.storage.local.get([`v7-${url}`])
         const openAIData = storageData[url]
 
         const dataToProcess = openAIData?.length ? openAIData : TESTING_DATA[url]
