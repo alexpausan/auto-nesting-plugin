@@ -34,9 +34,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
         }
 
         trainingData = buildTrainingData({ node: domTree, version: 'testing' })
-
-        console.log(trainingData)
-        // trainingData = trainingData.concat(...parseSlots({ version: 'testing' }))
+        trainingData = trainingData.concat(...parseSlots({ version: 'testing' }))
         console.log(1, trainingData)
       },
     })
@@ -71,13 +69,20 @@ async function openAICall({ url, version }) {
     v7: 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43',
     // v8: 'babbage:ft-personal:2603-v8-2023-03-26-08-28-43',
   }
+  console.log('Processing', version)
+  console.log(trainingData)
 
-  trainingData = trainingData ? trainingData : buildTrainingData({ node: domTree, version })
+  if (!trainingData) {
+    trainingData = buildTrainingData({ node: domTree, version })
+    trainingData = trainingData.concat(...parseSlots({ version }))
+  }
+
   console.log('Payload', trainingData)
 
   if (!trainingData) {
     return
   }
+
   const model = MODELS[version]
   console.log('Processing', model)
 

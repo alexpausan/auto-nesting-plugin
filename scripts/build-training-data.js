@@ -58,7 +58,7 @@ const buildTrainingData = (props) => {
     (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) &&
     version !== 'testing'
   ) {
-    return null
+    // return null
   }
 
   if (prompt.match(NEGATIVE_NR) && !completion.match(NEGATIVE_NR)) {
