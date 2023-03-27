@@ -1,4 +1,25 @@
-const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
+const slotsToBuildTrainingDataFor = {}
+const totalLength = 0
+
+const parseSlots = ({ version, buildPromptWithDivs = false }) => {
+  const result = []
+  // Inception... If I found some slots, I need to build the training data for them too and add it to the result
+  // Add a reprocess flag...
+  Object.values(slotsToBuildTrainingDataFor).forEach((slot) => {
+    const { node, reparsed } = slot
+    if (!reparsed) {
+      slot.reparsed = true
+
+      const slotTrainingData = buildTrainingData({ node, version, reparsingSlot: true })
+      result.push(...slotTrainingData)
+    }
+  })
+  return result
+}
+
+const buildTrainingData = (props) => {
+  const { node, buildPromptWithDivs = false, version, reparsingSlot = false } = props
+
   if (!node) {
     return
   }
@@ -7,7 +28,7 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
 
   let prompt
   let completion
-  let trainingSet = []
+  const result = []
 
   // If the node is not aligned, we go recursively through the children
   if (orientation === ORIENTATION.NOT_ALIGNED) {
@@ -16,23 +37,24 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
     }
 
     const childrenTrainingSet = children.map((child) => {
-      return buildTrainingData(child, buildPromptWithDivs)
+      return buildTrainingData({ ...props, node: child })
     })
 
-    return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+    return result.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
   // If we receive a version argument, then it's in testing mode so we don't override the offset
   const topOffset = version ? 0 : getTopOffset(node)
 
-  prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
+  // TODO: refactor buildPrompt & buildCompletion into a single function
+  prompt = buildPrompt({ node, topOffset, buildPromptWithDivs, reparsingSlot })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, topOffset, version })
+  completion = buildCompletion({ node, topOffset, version, reparsingSlot })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
-  if (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) {
+  if ((prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) && !version) {
     return null
   }
 
@@ -43,17 +65,19 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
   // If the prompt is too long, we get the training data from the children
   if (prompt.length + completion.length > MAX_PROMPT_LENGTH) {
     const childrenTrainingSet = children.map((child) => {
-      return buildTrainingData(child, buildPromptWithDivs)
+      return buildTrainingData({ ...props, node: child })
     })
 
-    return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
+    return result.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
-  return [{ prompt, completion }]
+  result.push({ prompt, completion })
+
+  return result
 }
 
 const buildPrompt = (props) => {
-  const { node, topOffset, buildPromptWithDivs = false } = props
+  const { node, topOffset, buildPromptWithDivs = false, reparsingSlot } = props
   const { nodeName, children, rect } = node
 
   const elType = getElType(node)
@@ -86,22 +110,34 @@ const buildPrompt = (props) => {
     const divIsVisible = divHasVisibleStyles(node)
     const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
 
-    // TODO: visible divs should be returned as separate prompts
-    if (divIsVisible) {
-      result = `[${elType} ${rectData}]`
-    } else if (includeThisDiv) {
+    // TODO: visible divs should be returned as slots and also added in separate prompts
+    if (divIsVisible && !reparsingSlot) {
+      result = `[${DIV_LABELS.SLOT} ${rectData}]`
+      const slotID = result
+
+      if (!slotsToBuildTrainingDataFor[slotID]) {
+        slotsToBuildTrainingDataFor[slotID] = {
+          node,
+          reparsed: false,
+        }
+      }
+
+      return result
+    }
+
+    if (includeThisDiv) {
       const clipedDivRect = computeContainersRectAndOrientation(node)
 
       const { rect } = clipedDivRect
       const rectAroundChildren = getRectData(rect, topOffset)
 
+      // TODO: give a different name to this DIV from prompt...
       result = `[${elType} ${rectAroundChildren}]`
     }
 
     markForTesting({ node, hideElement: !divIsVisible && !includeThisDiv })
 
     if (!divIsVisible && !includeThisDiv) {
-      // node.node.style.outline = 'none'
       result = NO_DATA
     }
   }
@@ -110,7 +146,7 @@ const buildPrompt = (props) => {
 }
 
 const buildCompletion = (props) => {
-  const { node, topOffset, version } = props
+  const { node, topOffset, version, reparsingSlot } = props
   const { nodeName, children, rect } = node
 
   const elType = getElType(node)
@@ -137,6 +173,11 @@ const buildCompletion = (props) => {
 
   if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
     return `${result}]`
+  }
+
+  // TODO: visible divs should be returned as slots and also added in separate prompts
+  if (elType === DIV_LABELS.DIV && divHasVisibleStyles(node) && !reparsingSlot) {
+    return `[${DIV_LABELS.SLOT} ${rectData}]`
   }
 
   children.forEach((child) => {

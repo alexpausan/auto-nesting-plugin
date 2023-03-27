@@ -185,7 +185,7 @@ const NODE_NAME = {
 
 const DELTA_UNIT = 4
 
-const MIN_PROMPT_LENGTH = 75
+const MIN_PROMPT_LENGTH = 100
 const MAX_PROMPT_LENGTH = 6000
 
 const NO_DATA = ''
