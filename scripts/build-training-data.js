@@ -1,4 +1,4 @@
-const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
+const buildTrainingData = (node = {}, buildPromptWithDivs = false, version) => {
   if (!node) {
     return
   }
@@ -22,14 +22,13 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
     return trainingSet.concat(...childrenTrainingSet.filter((data) => data !== null))
   }
 
-  // We override the top offset for elements so that we keep everything bellow 5000px
-  // const topOffset = getTopOffset(node)
-  const topOffset = 0
+  // If we receive a version argument, then it's in testing mode so we don't override the offset
+  const topOffset = version ? 0 : getTopOffset(node)
 
   prompt = buildPrompt({ node, topOffset, buildPromptWithDivs })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
-  completion = buildCompletion({ node, topOffset })
+  completion = buildCompletion({ node, topOffset, version })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
@@ -55,9 +54,10 @@ const buildTrainingData = (node = {}, buildPromptWithDivs = false) => {
 
 const buildPrompt = (props) => {
   const { node, topOffset, buildPromptWithDivs = false } = props
-  const { nodeName, children } = node
+  const { nodeName, children, rect } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, topOffset)
+  const elType = getElType(node)
+  const rectData = getRectData(rect, topOffset)
 
   if (isAbsolutePosOrUnaligned(node)) {
     markForTesting({ node, hideElement: true })
@@ -66,20 +66,7 @@ const buildPrompt = (props) => {
 
   markForTesting({ node })
 
-  let result = `[${elType} ${rectData}]`
-
-  // Divs that are not visibly distinguisable from the background, may be included in the prompt or not
-  if (elType === DIV_LABELS.DIV) {
-    const divIsVisible = divHasVisibleStyles(node)
-    const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
-    // markForTesting({ node, hideElement: !divIsVisible })
-    markForTesting({ node, hideElement: !divIsVisible && !includeThisDiv })
-
-    if (!divIsVisible && !includeThisDiv) {
-      // node.node.style.outline = 'none'
-      result = NO_DATA
-    }
-  }
+  let result = elType !== DIV_LABELS.DIV ? `[${elType} ${rectData}]` : NO_DATA
 
   if (!children?.length) {
     return result
@@ -89,27 +76,59 @@ const buildPrompt = (props) => {
     return result
   }
 
+  let childrenData = ''
   children.forEach((child) => {
-    result += buildPrompt({ ...props, node: child })
+    childrenData += buildPrompt({ ...props, node: child })
   })
 
-  return result
+  // Divs that are not visibly distinguisable from the background, may be included in the prompt or not
+  if (elType === DIV_LABELS.DIV) {
+    const divIsVisible = divHasVisibleStyles(node)
+    const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
+
+    // TODO: visible divs should be returned as separate prompts
+    if (divIsVisible) {
+      result = `[${elType} ${rectData}]`
+    } else if (includeThisDiv) {
+      const clipedDivRect = computeContainersRectAndOrientation(node)
+
+      const { rect } = clipedDivRect
+      const rectAroundChildren = getRectData(rect, topOffset)
+
+      result = `[${elType} ${rectAroundChildren}]`
+    }
+
+    markForTesting({ node, hideElement: !divIsVisible && !includeThisDiv })
+
+    if (!divIsVisible && !includeThisDiv) {
+      // node.node.style.outline = 'none'
+      result = NO_DATA
+    }
+  }
+
+  return result + childrenData
 }
 
 const buildCompletion = (props) => {
-  const { node, topOffset } = props
-  const { nodeName, children } = node
+  const { node, topOffset, version } = props
+  const { nodeName, children, rect } = node
 
-  const { elType, rectData } = getElTypeAndRectData(node, topOffset)
+  const elType = getElType(node)
+  const rectData = getRectData(rect, topOffset)
 
   if (isAbsolutePosOrUnaligned(node)) {
     return NO_DATA
   }
 
-  // TODO -> change to include the rect data for the divs
-  // let result = `[${elType} ${rectData}`
+  let result
 
-  let result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
+  // TODO: if v8 will be used again, compute the rect data from the children rect data ->
+  // To include updated rect around the content
+  if (version === 'v8') {
+    result = `[${elType} ${rectData}`
+  } else {
+    result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
+  }
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
@@ -157,23 +176,19 @@ const isAbsolutePosOrUnaligned = (node) => {
 }
 
 // In this version we don't take the orientation into account
-const getElTypeAndRectData = (node, topOffset = 0) => {
-  const { nodeName: tag, rect, children } = node
-  const { top, left, width, height } = rect
+const getElType = (node) => {
+  const { nodeName: tag, children } = node
 
-  // const rectData = `x${left} y${top} w${width} h${height}`
-  const rectData = `top${top - topOffset} left${left} width${width} height${height}`
-
-  const elType = CONTAINER_TAGS[tag]
+  return CONTAINER_TAGS[tag]
     ? children
       ? DIV_LABELS.DIV
       : DIV_LABELS.SLOT
     : CONTENT_TAG_LABEL[tag]
+}
 
-  return {
-    elType,
-    rectData,
-  }
+const getRectData = (rect, topOffset = 0) => {
+  const { top, left, width, height } = rect
+  return `top${top - topOffset} left${left} width${width} height${height}`
 }
 
 const enrichData = (trainingData = []) => {

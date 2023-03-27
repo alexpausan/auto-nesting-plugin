@@ -19,6 +19,7 @@
     {
       "js": [
         "scripts/plugin-constants.js",
+        "scripts/utils.js",
         "scripts/testing-script.js",
         "scripts/plugin-scraper.js",
         "scripts/build-training-data.js"

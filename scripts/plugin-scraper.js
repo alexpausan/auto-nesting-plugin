@@ -62,8 +62,8 @@ function getTreeData(treeNode) {
     result.orientation = orientation
 
     // TODO comment when scraping - > Mark it for testing purposes
-    // node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
-    // node.style.outlineOffset = '-4px'
+    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
+    node.style.outlineOffset = '-4px'
   }
 
   result.children = []
@@ -306,106 +306,6 @@ function getOrientationBasedOnPosition(nodesList, parentDisplay) {
   }
 
   return getOrientationBasedOnRects(payload)
-}
-
-function getOrientationBasedOnRects(props, tryNr = 0) {
-  const {
-    topValues,
-    bottomValues,
-    leftValues,
-    rightValues,
-    horizontalPosOfCenter,
-    verticalPosOfCenter,
-    parentDisplay,
-    allElementsAreInline,
-    alignmentTolerance = ALIGNMENT_TOLERANCE,
-    xEdges,
-    yEdges,
-  } = props
-
-  // Check if xEdges and yEdges are ascending or descending, while not having duplicates on the opposite axis
-  if (
-    isArrayAscendingOrDescending(xEdges) &&
-    !arrayHasDuplicates(leftValues) &&
-    !arrayHasDuplicates(rightValues)
-  ) {
-    return ORIENTATION.ROW
-  }
-
-  if (
-    isArrayAscendingOrDescending(yEdges) &&
-    !arrayHasDuplicates(topValues) &&
-    !arrayHasDuplicates(bottomValues)
-  ) {
-    return ORIENTATION.COL
-  }
-
-  // We use the default sort method, and compare the nr
-  topValues.sort((a, b) => a - b)
-  bottomValues.sort((a, b) => a - b)
-  leftValues.sort((a, b) => a - b)
-  rightValues.sort((a, b) => a - b)
-  horizontalPosOfCenter.sort((a, b) => a - b)
-  verticalPosOfCenter.sort((a, b) => a - b)
-
-  // Get the max difference in each case
-  const topDiff = topValues[topValues.length - 1] - topValues[0]
-  const bottomDiff = bottomValues[bottomValues.length - 1] - bottomValues[0]
-  const leftDiff = leftValues[leftValues.length - 1] - leftValues[0]
-  const rightDiff = rightValues[rightValues.length - 1] - rightValues[0]
-  const horDiff = horizontalPosOfCenter[horizontalPosOfCenter.length - 1] - horizontalPosOfCenter[0]
-  const verDiff = verticalPosOfCenter[verticalPosOfCenter.length - 1] - verticalPosOfCenter[0]
-
-  // The first check for alignment is a basic one, checking if the diff is within the tolerance
-  const horizontal = topDiff <= alignmentTolerance || bottomDiff <= alignmentTolerance
-  const vertical = leftDiff <= alignmentTolerance || rightDiff <= alignmentTolerance
-
-  if (horizontal && !vertical) {
-    return ORIENTATION.ROW
-  }
-  if (vertical && !horizontal) {
-    return ORIENTATION.COL
-  }
-
-  // Second check compares the deviation from center on the 2 axis
-  if (
-    verDiff <= alignmentTolerance &&
-    !arrayHasDuplicates(leftValues) &&
-    !arrayHasDuplicates(rightValues)
-  ) {
-    // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
-    if (parentDisplay === DISPLAY_GRID) {
-      return ORIENTATION.ROW_WR
-    }
-
-    return ORIENTATION.ROW
-  }
-
-  if (
-    horDiff <= alignmentTolerance &&
-    !arrayHasDuplicates(topValues) &&
-    !arrayHasDuplicates(bottomValues)
-  ) {
-    // If elements are aligned in a row, but the parent is grid, we mimic a row wrap
-    if (parentDisplay === DISPLAY_GRID) {
-      return ORIENTATION.COL_WR
-    }
-
-    return ORIENTATION.COL
-  }
-
-  // There are cases where multiple text elements are used inside a container, and they may not be aligned
-  if (parentDisplay === 'block' && allElementsAreInline) {
-    return ORIENTATION.BLOCK_INLINE
-  }
-
-  // If still not aligned, we call the function again, with a higher tolerance
-  if (tryNr === 0) {
-    props.alignmentTolerance = ALIGNMENT_TOLERANCE * 2
-    return getOrientationBasedOnRects(props, ++tryNr)
-  }
-
-  return ORIENTATION.NOT_ALIGNED
 }
 
 function hasAbsolutePosition(node) {
