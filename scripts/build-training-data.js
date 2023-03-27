@@ -58,7 +58,7 @@ const buildTrainingData = (props) => {
     (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) &&
     version !== 'testing'
   ) {
-    // return null
+    return null
   }
 
   if (prompt.match(NEGATIVE_NR) && !completion.match(NEGATIVE_NR)) {
@@ -113,7 +113,7 @@ const buildPrompt = (props) => {
     const divIsVisible = divHasVisibleStyles(node)
     markForTesting({ node, hideElement: !divIsVisible })
 
-    // TODO: visible divs should be returned as slots and also added in separate prompts
+    // Visible divs are returned as slots and also added in separate prompts
     if (divIsVisible && !reparsingSlot) {
       result = `[${DIV_LABELS.SLOT} ${rectData}]`
       const slotID = result
@@ -166,7 +166,7 @@ const buildCompletion = (props) => {
     return `${result}]`
   }
 
-  // TODO: visible divs should be returned as slots and also added in separate prompts
+  // Visible divs are returned as slots and also added in separate prompts
   if (elType === DIV_LABELS.DIV && divHasVisibleStyles(node) && !reparsingSlot) {
     return `[${DIV_LABELS.SLOT} ${rectData}]`
   }
