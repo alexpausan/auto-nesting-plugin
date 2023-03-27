@@ -1,7 +1,7 @@
 const slotsToBuildTrainingDataFor = {}
 const totalLength = 0
 
-const parseSlots = ({ version, buildPromptWithDivs = false }) => {
+const parseSlots = ({ version }) => {
   const result = []
   // Inception... If I found some slots, I need to build the training data for them too and add it to the result
   // Add a reprocess flag...
@@ -18,7 +18,7 @@ const parseSlots = ({ version, buildPromptWithDivs = false }) => {
 }
 
 const buildTrainingData = (props) => {
-  const { node, buildPromptWithDivs = false, version, reparsingSlot = false } = props
+  const { node, version, reparsingSlot = false } = props
 
   if (!node) {
     return
@@ -44,17 +44,20 @@ const buildTrainingData = (props) => {
   }
 
   // If we receive a version argument, then it's in testing mode so we don't override the offset
-  const topOffset = version ? 0 : getTopOffset(node)
+  const topOffset = version === 'testing' ? 0 : getTopOffset(node)
 
   // TODO: refactor buildPrompt & buildCompletion into a single function
-  prompt = buildPrompt({ node, topOffset, buildPromptWithDivs, reparsingSlot })
+  prompt = buildPrompt({ node, topOffset, reparsingSlot })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
   completion = buildCompletion({ node, topOffset, version, reparsingSlot })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
-  if ((prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) && !version) {
+  if (
+    (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) &&
+    version !== 'testing'
+  ) {
     return null
   }
 
@@ -77,7 +80,7 @@ const buildTrainingData = (props) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, topOffset, buildPromptWithDivs = false, reparsingSlot } = props
+  const { node, topOffset, reparsingSlot } = props
   const { nodeName, children, rect } = node
 
   const elType = getElType(node)
@@ -108,7 +111,7 @@ const buildPrompt = (props) => {
   // Divs that are not visibly distinguisable from the background, may be included in the prompt or not
   if (elType === DIV_LABELS.DIV) {
     const divIsVisible = divHasVisibleStyles(node)
-    const includeThisDiv = buildPromptWithDivs && includeThisDivInPrompt()
+    markForTesting({ node, hideElement: !divIsVisible })
 
     // TODO: visible divs should be returned as slots and also added in separate prompts
     if (divIsVisible && !reparsingSlot) {
@@ -125,19 +128,7 @@ const buildPrompt = (props) => {
       return result
     }
 
-    if (includeThisDiv) {
-      const clipedDivRect = computeContainersRectAndOrientation(node)
-
-      const { rect } = clipedDivRect
-      const rectAroundChildren = getRectData(rect, topOffset)
-
-      // TODO: give a different name to this DIV from prompt...
-      result = `[${elType} ${rectAroundChildren}]`
-    }
-
-    markForTesting({ node, hideElement: !divIsVisible && !includeThisDiv })
-
-    if (!divIsVisible && !includeThisDiv) {
+    if (!divIsVisible) {
       result = NO_DATA
     }
   }

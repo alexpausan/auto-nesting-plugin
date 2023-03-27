@@ -36,7 +36,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
         trainingData = buildTrainingData({ node: domTree, version: 'testing' })
 
         console.log(trainingData)
-        trainingData = trainingData.concat(...parseSlots({ version: 'testing' }))
+        // trainingData = trainingData.concat(...parseSlots({ version: 'testing' }))
         console.log(1, trainingData)
       },
     })
