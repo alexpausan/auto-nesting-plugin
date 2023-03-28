@@ -3,6 +3,58 @@ const LEFT_PROP_LENGHT = 4
 const WIDTH_PROP_LENGHT = 5
 const HEIGHT_PROP_LENGHT = 6
 
+async function getGPTResponse(trainingData, model) {
+  if (!trainingData) {
+    return
+  }
+
+  document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
+
+  const t0 = performance.now()
+  const messages = [SYSTEM_MESSAGE]
+
+  trainingData.forEach((item) => {
+    if (!item.prompt) {
+      return
+    }
+    messages.push({ role: 'user', content: item.prompt })
+  })
+
+  const payload = {
+    model,
+    messages,
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer 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',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    })
+
+    const data = await response.json()
+
+    if (!data?.choices) {
+      return ''
+    }
+
+    const { choices = [] } = data
+    let text = choices[0]?.message?.content
+
+    processOpenAIResponse(text)
+
+    return text
+  } catch (error) {
+    console.error(error)
+  }
+
+  const t1 = performance.now()
+  console.log(t1 - t0, 'milliseconds')
+}
+
 async function getNestedStructure(flatStructure, model, version) {
   if (!flatStructure) {
     return
@@ -71,7 +123,7 @@ function processOpenAIResponse(text, version) {
   }
 
   text = text.trim() + ']]'
-  let tree = stringToTree(text, version)
+  let tree = stringToTree(text)
 
   console.log({ text }, tree)
 
@@ -127,7 +179,7 @@ function drawResults(tree) {
   }
 }
 
-function stringToTree(data, version) {
+function stringToTree(data) {
   if (!data) {
     return null
   }

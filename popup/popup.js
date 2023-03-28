@@ -2,11 +2,13 @@
 const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('training-data')
 
-const v6Button = document.getElementById('process-v6')
+const v9Button = document.getElementById('process-v9')
 const v7Button = document.getElementById('process-v7')
 
-const reprocessV6 = document.getElementById('reprocess-v6')
+const reprocessV9 = document.getElementById('reprocess-v9')
 const reprocessV7 = document.getElementById('reprocess-v7')
+
+const callGPT = document.getElementById('call-gpt4')
 
 let domTree
 let trainingData
@@ -26,9 +28,11 @@ getTree.addEventListener('click', function () {
 
 buildTrainingDataBtn.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0]
     chrome.scripting.executeScript({
       target: { tabId: tabs[0].id },
-      function: () => {
+      args: [{ url: currentTab.url }],
+      function: ({ url }) => {
         if (!domTree) {
           console.log('No domTree')
         }
@@ -36,17 +40,19 @@ buildTrainingDataBtn.addEventListener('click', function () {
         trainingData = buildTrainingData({ node: domTree, version: 'testing' })
         trainingData = trainingData.concat(...parseSlots({ version: 'testing' }))
         console.log(1, trainingData)
+
+        chrome.storage.local.set({ [`trainingData-${url}`]: trainingData })
       },
     })
   })
 })
 
-v6Button.addEventListener('click', function () {
+v9Button.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
     const currentTab = tabs[0]
     chrome.scripting.executeScript({
       target: { tabId: currentTab.id },
-      args: [{ url: currentTab.url, version: 'v6' }],
+      args: [{ url: currentTab.url, version: 'v9' }],
       function: openAICall,
     })
   })
@@ -63,9 +69,40 @@ v7Button.addEventListener('click', function () {
   })
 })
 
+callGPT.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    const currentTab = tabs[0]
+    chrome.scripting.executeScript({
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url }],
+      function: gptCall,
+    })
+  })
+})
+
+async function gptCall({ url }) {
+  const GPT_MODEL = 'gpt-4'
+
+  console.log('Processing', GPT_MODEL)
+  console.log(trainingData)
+
+  // if (!trainingData) {
+  // trainingData = buildTrainingData({ node: domTree, version })
+  // trainingData = trainingData.concat(...parseSlots({ version }))
+  // }
+
+  if (!trainingData) {
+    return
+  }
+
+  openAIResponse = await getGPTResponse(trainingData, GPT_MODEL)
+
+  chrome.storage.local.set({ [`${GPT_MODEL}-${url}`]: openAIResponse })
+}
+
 async function openAICall({ url, version }) {
   const MODELS = {
-    v6: 'babbage:ft-personal:2503-v6-2023-03-25-16-35-55',
+    v9: 'babbage:ft-personal:2603-v9-2023-03-27-21-11-32',
     v7: 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43',
     // v8: 'babbage:ft-personal:2603-v8-2023-03-26-08-28-43',
   }
@@ -91,13 +128,13 @@ async function openAICall({ url, version }) {
   chrome.storage.local.set({ [`${version}-${url}`]: openAIResponse })
 }
 
-reprocessV6.addEventListener('click', function () {
+reprocessV9.addEventListener('click', function () {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const currentTab = tabs[0]
 
     chrome.scripting.executeScript({
       target: { tabId: currentTab.id },
-      args: [{ url: currentTab.url, version: 'v6' }],
+      args: [{ url: currentTab.url, version: 'v9' }],
       function: reprocessData,
     })
   })

@@ -1,5 +1,4 @@
 const slotsToBuildTrainingDataFor = {}
-const totalLength = 0
 
 const parseSlots = ({ version }) => {
   const result = []
@@ -53,15 +52,17 @@ const buildTrainingData = (props) => {
   completion = buildCompletion({ node, topOffset, version, reparsingSlot })
   completion = ` ${completion} ${GPT_END_OF_COMPLETION}`
 
+  // If the node root is a slot, we process it that way, and skip the individual slot!
+  // In this case it was halucinating !!!
+  if (PROMPT_WITH_ONLY_ONE_SLOT.test(prompt)) {
+    return null
+  }
+
   // If we have a prompt too short we don't include it, and we don't visit the children either
   if (
     (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) &&
     version !== 'testing'
   ) {
-    return null
-  }
-
-  if (prompt.match(NEGATIVE_NR) && !completion.match(NEGATIVE_NR)) {
     return null
   }
 
@@ -82,6 +83,10 @@ const buildTrainingData = (props) => {
 const buildPrompt = (props) => {
   const { node, topOffset, reparsingSlot } = props
   const { nodeName, children, rect } = node
+
+  if (rect.top < 0 || rect.left < 0) {
+    return NO_DATA
+  }
 
   const elType = getElType(node)
   const rectData = getRectData(rect, topOffset)
@@ -113,7 +118,7 @@ const buildPrompt = (props) => {
     const divIsVisible = divHasVisibleStyles(node)
     markForTesting({ node, hideElement: !divIsVisible })
 
-    // Visible divs are returned as slots and also added in separate prompts
+    // Visible divs are added in separate prompts
     if (divIsVisible && !reparsingSlot) {
       result = `[${DIV_LABELS.SLOT} ${rectData}]`
       const slotID = result
@@ -125,7 +130,7 @@ const buildPrompt = (props) => {
         }
       }
 
-      return result
+      return slotID
     }
 
     if (!divIsVisible) {
@@ -139,6 +144,10 @@ const buildPrompt = (props) => {
 const buildCompletion = (props) => {
   const { node, topOffset, version, reparsingSlot } = props
   const { nodeName, children, rect } = node
+
+  if (rect.top < 0 || rect.left < 0) {
+    return NO_DATA
+  }
 
   const elType = getElType(node)
   const rectData = getRectData(rect, topOffset)
@@ -296,6 +305,7 @@ function divHasVisibleStyles(node) {
 
   for (const visibleStyle of STYLES_THAT_MAKE_DIV_VISIBLE) {
     if (styles[visibleStyle]) {
+      // && style !== none... to check pairs: border-style and border-width, etc...
       return true
     }
   }

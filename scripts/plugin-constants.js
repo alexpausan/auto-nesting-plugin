@@ -133,6 +133,7 @@ const STYLE_PROPERTIES = {
     'border-width',
     'border-style',
     'font-size',
+    'transform',
   ],
   TEXT_NODES: 'font-size',
 }
@@ -170,6 +171,7 @@ const DEFAULT_STYLES = {
   'border-width': '0px',
   'border-style': 'none',
   'font-size': '16px',
+  transform: 'none',
 }
 
 const NODE_NAME = {
@@ -202,13 +204,12 @@ const MAX_OFFSET_FOR_REPOSITION = 3000
 const MIN_OFFSET_FOR_FOOTER = 600
 const NO_OFFSET = 0
 
-const PROMPTS_TO_INCLUDE_DIVS = 0.3
-const DIV_PERCENTAGE = 0.5
-
 const NEGATIVE_NR = /[xy]-\d+/g
 
 const TOP_COORDINATE_REGEX = /top(\d+)/g
 const LEFT_COORDINATE_REGEX = /left(\d+)/g
+
+const PROMPT_WITH_ONLY_ONE_SLOT = /^\[slot ([a-z]+\d+ ){3}[a-z]+\d+\] ###$/
 
 const DIV_LABELS = {
   DIV: 'div',
@@ -281,4 +282,13 @@ const STYLES_THAT_MAKE_DIV_VISIBLE = [
   'box-shadow',
   'background-image',
   'background-color',
+  'transform',
 ]
+
+const SYSTEM_MESSAGE = {
+  role: 'system',
+  content: `Transform a layout from a flat structure, in absolute position to a nested structure.
+  String Input formatted as [element top left width height].
+  Output format is [div[element top width height]], where "div" elements are the wraping containers, without coordinates or size.
+  If "link" elements encompass other elements, nest them inside the link.`,
+}
