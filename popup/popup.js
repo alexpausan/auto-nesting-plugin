@@ -52,7 +52,7 @@ v9Button.addEventListener('click', function () {
     const currentTab = tabs[0]
     chrome.scripting.executeScript({
       target: { tabId: currentTab.id },
-      args: [{ url: currentTab.url, version: 'v9' }],
+      args: [{ url: currentTab.url, version: 'v10.0' }],
       function: openAICall,
     })
   })
@@ -63,7 +63,7 @@ v7Button.addEventListener('click', function () {
     const currentTab = tabs[0]
     chrome.scripting.executeScript({
       target: { tabId: currentTab.id },
-      args: [{ url: currentTab.url, version: 'v7' }],
+      args: [{ url: currentTab.url, version: 'v10.1' }],
       function: openAICall,
     })
   })
@@ -105,14 +105,16 @@ async function openAICall({ url, version }) {
     v9: 'babbage:ft-personal:2603-v9-2023-03-27-21-11-32',
     v7: 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43',
     // v8: 'babbage:ft-personal:2603-v8-2023-03-26-08-28-43',
+    ['v10.0']: 'babbage:ft-personal:2603-v10-0-2023-03-28-22-04-50',
+    ['v10.1']: 'babbage:ft-personal:2603-v10-1-2023-03-29-00-08-12',
   }
-  console.log('Processing', version)
-  console.log(trainingData)
 
-  if (!trainingData) {
-    trainingData = buildTrainingData({ node: domTree, version })
-    trainingData = trainingData.concat(...parseSlots({ version }))
-  }
+  console.log('Processing', version)
+
+  // if (!trainingData) {
+  trainingData = buildTrainingData({ node: domTree, version })
+  trainingData = trainingData.concat(...parseSlots({ version }))
+  // }
 
   console.log('Payload', trainingData)
 

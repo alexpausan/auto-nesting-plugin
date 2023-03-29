@@ -44,9 +44,10 @@ const buildTrainingData = (props) => {
 
   // If we receive a version argument, then it's in testing mode so we don't override the offset
   const topOffset = version === 'testing' ? 0 : getTopOffset(node)
+  // const topOffset = 0
 
   // TODO: refactor buildPrompt & buildCompletion into a single function
-  prompt = buildPrompt({ node, topOffset, reparsingSlot })
+  prompt = buildPrompt({ node, topOffset, reparsingSlot, version })
   prompt += ` ${GPT_END_OF_PROMPT}`
 
   completion = buildCompletion({ node, topOffset, version, reparsingSlot })
@@ -81,7 +82,7 @@ const buildTrainingData = (props) => {
 }
 
 const buildPrompt = (props) => {
-  const { node, topOffset, reparsingSlot } = props
+  const { node, topOffset, reparsingSlot, version } = props
   const { nodeName, children, rect } = node
 
   if (rect.top < 0 || rect.left < 0) {
@@ -89,7 +90,7 @@ const buildPrompt = (props) => {
   }
 
   const elType = getElType(node)
-  const rectData = getRectData(rect, topOffset)
+  const rectData = getRectData(rect, topOffset, version)
 
   if (isAbsolutePosOrUnaligned(node)) {
     markForTesting({ node, hideElement: true })
@@ -227,9 +228,9 @@ const getElType = (node) => {
     : CONTENT_TAG_LABEL[tag]
 }
 
-const getRectData = (rect, topOffset = 0) => {
+const getRectData = (rect, topOffset = 0, version) => {
   const { top, left, width, height } = rect
-  return `top${top - topOffset} left${left} width${width} height${height}`
+  return `top${top - topOffset} left${left} height${height} width${width}`
 }
 
 const enrichData = (trainingData = []) => {
