@@ -181,6 +181,7 @@ const NODE_NAME = {
   SELECT: 'SELECT',
   ANCHOR: 'A',
   BODY: 'BODY',
+  BUTTON: 'BUTTON',
 }
 
 // ---- Prompt building constants ----
@@ -203,8 +204,6 @@ const MIN_OFFSET_FOR_REPOSITION = 200
 const MAX_OFFSET_FOR_REPOSITION = 3000
 const MIN_OFFSET_FOR_FOOTER = 600
 const NO_OFFSET = 0
-
-const NEGATIVE_NR = /[xy]-\d+/g
 
 const TOP_COORDINATE_REGEX = /top(\d+)/g
 const LEFT_COORDINATE_REGEX = /left(\d+)/g

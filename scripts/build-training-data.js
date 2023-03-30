@@ -1,6 +1,6 @@
 const slotsToBuildTrainingDataFor = {}
 
-const parseSlots = ({ version }) => {
+const parseSlots = ({ version } = {}) => {
   const result = []
   // Inception... If I found some slots, I need to build the training data for them too and add it to the result
   // Add a reprocess flag...
@@ -9,7 +9,7 @@ const parseSlots = ({ version }) => {
     if (!reparsed) {
       slot.reparsed = true
 
-      const slotTrainingData = buildTrainingData({ node, version, reparsingSlot: true })
+      const slotTrainingData = buildTrainingData({ node, version, reparsingSlot: true }) || []
       result.push(...slotTrainingData)
     }
   })
@@ -189,7 +189,6 @@ const buildCompletion = (props) => {
 }
 
 const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
-const includeThisDivInPrompt = () => Math.random() <= DIV_PERCENTAGE
 
 const isAbsolutePosOrUnaligned = (node) => {
   const { children, orientation, styles, rect } = node
