@@ -21,7 +21,8 @@
         "scripts/plugin-constants.js",
         "scripts/testing-script.js",
         "scripts/plugin-scraper.js",
-        "scripts/build-training-data.js"
+        "scripts/build-training-data.js",
+        "scripts/process-nested-structure.js"
       ],
       "matches": ["*://*/*"],
       "run_at": "document_idle"

@@ -189,7 +189,7 @@ const NODE_NAME = {
 const DELTA_UNIT = 4
 
 const MIN_PROMPT_LENGTH = 100
-const MAX_PROMPT_LENGTH = 4000
+const MAX_PROMPT_LENGTH = 6000
 
 const NO_DATA = ''
 
@@ -290,4 +290,20 @@ const SYSTEM_MESSAGE = {
   String Input formatted as [element top left width height].
   Output format is [div[element top width height]], where "div" elements are the wraping containers, without coordinates or size.
   If "link" elements encompass other elements, nest them inside the link.`,
+}
+
+const ELEMENT_TYPE_TO_DOM_NODE = {
+  link: 'a',
+  text: 'span',
+  // TODO: search the entire tree for other heading elements to determine the heading level
+  heading: 'h1',
+  img: 'img',
+  button: 'button',
+  input: 'input',
+  audio: 'audio',
+  video: 'video',
+  hr: 'hr',
+  iframe: 'iframe',
+  div: 'div',
+  slot: 'div',
 }

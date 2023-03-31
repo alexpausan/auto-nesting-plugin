@@ -3,12 +3,22 @@ const LEFT_PROP_LENGHT = 4
 const WIDTH_PROP_LENGHT = 5
 const HEIGHT_PROP_LENGHT = 6
 
+const DIV_START = /^\[div/
+const PARENT_END = /^\]/
+const ELEMENT_END = /^\]/
+const DIV_PATERN_LENGTH = 4
+const ELEMENT_CONTENT =
+  /^\[(\w+)(?:\s*(?:top)?(\d+)\s*(?:left)?(\d+)\s*(?:height)?(\d+)\s*(?:width)?(\d+))/
+
+const DIV_ELEMENT = 'div'
+const LINK_ELEMENT = 'link'
+
 async function getGPTResponse(trainingData, model) {
   if (!trainingData) {
     return
   }
 
-  document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
+  createOverlaysContainer()
 
   const t0 = performance.now()
   const messages = [SYSTEM_MESSAGE]
@@ -55,12 +65,10 @@ async function getGPTResponse(trainingData, model) {
   console.log(t1 - t0, 'milliseconds')
 }
 
-async function getNestedStructure(flatStructure, model, version) {
+async function flatToNestedStructure(flatStructure, model, version) {
   if (!flatStructure) {
     return
   }
-  // Clear previous overlays
-  document.querySelectorAll('.nesting-overlay').forEach((el) => el.remove())
 
   const t0 = performance.now()
   const promises = []
@@ -68,7 +76,7 @@ async function getNestedStructure(flatStructure, model, version) {
   const payload = {
     model,
     temperature: 0,
-    max_tokens: 1000,
+    max_tokens: 1500,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
@@ -94,14 +102,14 @@ async function getNestedStructure(flatStructure, model, version) {
         .then((response) => response.json())
         .then((response) => {
           if (!response?.choices) {
-            resolve('')
+            resolve()
           }
 
           const { choices = [] } = response
-          let { text = '' } = choices[0]
+          const { text = '' } = choices[0]
+          const treeResult = processOpenAIResponse(text, version)
 
-          processOpenAIResponse(text, version)
-          resolve(text)
+          resolve(treeResult)
         })
         .catch((error) => console.error(error))
     })
@@ -126,53 +134,42 @@ function processOpenAIResponse(text, version) {
   let tree = stringToTree(text)
 
   console.log({ text }, tree)
-
   if (!tree) {
     return
   }
 
-  if (version !== 'v8') {
-    tree = computeContainersRectAndOrientation(tree, version)
-  }
+  tree = computeContainersRectAndOrientation(tree, version)
+  buildAbsoluteOverlay(tree)
 
-  drawResults(tree)
+  return tree
 }
 
-const DIV_START = /^\[div/
-const PARENT_END = /^\]/
-const ELEMENT_END = /^\]/
-const DIV_PATERN_LENGTH = 4
-const ELEMENT_CONTENT =
-  /^\[(\w+)(?:\s*(?:top)?(\d+)\s*(?:left)?(\d+)\s*(?:height)?(\d+)\s*(?:width)?(\d+))/
+function buildAbsoluteOverlay(node) {
+  let { rect, children, orientation } = node
 
-const DIV_ELEMENT = 'div'
-const LINK_ELEMENT = 'link'
-
-function addOveralyToDom(rect, orientation) {
-  const el = document.createElement('div')
-  el.classList.add('nesting-overlay')
-  el.style.position = 'absolute'
-  el.style.border = `4px dashed ${ORIENTATION_COLOR[orientation]}`
-  el.style.top = rect.top + 'px'
-  el.style.left = rect.left + 'px'
-  el.style.width = rect.width + 'px'
-  el.style.height = rect.height + 'px'
-  el.style.visibility = 'visible'
-  el.style.zIndex = 99000
-
-  document.body.appendChild(el)
-}
-
-function drawResults(tree) {
-  let { type, rect, children, orientation } = tree
-
-  if (type === DIV_ELEMENT && rect) {
-    addOveralyToDom(rect, orientation)
+  if (children?.length && rect) {
+    addAbsOverlay(rect, orientation)
   }
 
   if (children?.length) {
-    children.forEach(drawResults)
+    children.forEach(buildAbsoluteOverlay)
   }
+}
+
+function addAbsOverlay(rect, orientation) {
+  const el = document.createElement('div')
+  el.classList.add('nesting-overlay')
+  el.style.cssText = `
+    position: absolute;
+    border: 4px dashed ${ORIENTATION_COLOR[orientation]};
+    top: ${rect.top}px;
+    left: ${rect.left}px;
+    width: ${rect.width}px;
+    height: ${rect.height}px;
+    z-index: 99000;
+  `
+
+  document.body.appendChild(el)
 }
 
 function stringToTree(data) {

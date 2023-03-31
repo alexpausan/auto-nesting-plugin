@@ -1,5 +1,5 @@
 body {
-  width: 250px;
+  width: 300px;
 }
 
 button {
@@ -21,7 +21,7 @@ button {
 
 .data-processor {
   display: flex;
-  gap: 16px;
+  gap: 24px;
 }
 
 h1 {

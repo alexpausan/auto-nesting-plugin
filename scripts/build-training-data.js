@@ -1,4 +1,4 @@
-const slotsToBuildTrainingDataFor = {}
+let slotsToBuildTrainingDataFor = {}
 
 const parseSlots = ({ version } = {}) => {
   const result = []
@@ -13,6 +13,8 @@ const parseSlots = ({ version } = {}) => {
       result.push(...slotTrainingData)
     }
   })
+  // Reinitialize the object to avoid reprocessing the same slots
+  slotsToBuildTrainingDataFor = {}
   return result
 }
 
@@ -43,7 +45,7 @@ const buildTrainingData = (props) => {
   }
 
   // If we receive a version argument, then it's in testing mode so we don't override the offset
-  const topOffset = version === 'testing' ? 0 : getTopOffset(node)
+  const topOffset = version ? 0 : getTopOffset(node)
   // const topOffset = 0
 
   // TODO: refactor buildPrompt & buildCompletion into a single function
@@ -60,15 +62,26 @@ const buildTrainingData = (props) => {
   }
 
   // If we have a prompt too short we don't include it, and we don't visit the children either
-  if (
-    (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) &&
-    version !== 'testing'
-  ) {
-    return null
+
+  // If we have a prompt too short we don't include it, and we don't visit the children either
+  if (!version) {
+    if (prompt?.length < MIN_PROMPT_LENGTH || completion?.length < MIN_PROMPT_LENGTH) {
+      return null
+    }
+
+    // Normalize the training set items length.
+    if (prompt?.length < MIN_PROMPT_LENGTH * 2) {
+      if (prompt?.length < MIN_PROMPT_LENGTH * 1.5 && Math.random() < 0.5) {
+        return null
+      } else if (Math.random() < 0.4) {
+        return null
+      }
+    }
   }
 
+  const maxPromptLength = version ? MAX_PROMPT_LENGTH / 1.5 : MAX_PROMPT_LENGTH
   // If the prompt is too long, we get the training data from the children
-  if (prompt.length + completion.length > MAX_PROMPT_LENGTH) {
+  if (prompt.length + completion.length > maxPromptLength) {
     const childrenTrainingSet = children.map((child) => {
       return buildTrainingData({ ...props, node: child })
     })
@@ -298,8 +311,7 @@ const getTopOffset = (node) => {
 function divHasVisibleStyles(node) {
   const { styles, nodeName, rect } = node
 
-  // I limit to divs that are bellow 1000px, even if they have visible styles
-  if (nodeName === NODE_NAME.BODY || rect.height > 1000) {
+  if (nodeName === NODE_NAME.BODY) {
     return
   }
 

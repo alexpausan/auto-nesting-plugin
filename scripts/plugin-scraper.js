@@ -1,12 +1,16 @@
 let docHeight
 let docWidth
 
-function getDOMData() {
+let testing = false
+
+function getDOMData(testingVersion) {
   const body = document.body
 
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
+  // Used only to test the plugin
+  testing = testingVersion
   let result = getTreeData(body)
 
   return result
@@ -62,8 +66,8 @@ function getTreeData(treeNode) {
     result.orientation = orientation
 
     // TODO comment when scraping - > Mark it for testing purposes
-    node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
-    node.style.outlineOffset = '-4px'
+    // node.style.outline = '4px dashed ' + ORIENTATION_COLOR[orientation]
+    // node.style.outlineOffset = '-4px'
   }
 
   result.children = []
@@ -454,6 +458,10 @@ function isElementVisibleAndInViewport(node) {
     return true
   }
 
+  if (!testing && transform !== 'none') {
+    return false
+  }
+
   // Exclude non visible elements or the ones outside the viewport
   if (
     offsetRect.left < docWidth &&
@@ -464,8 +472,7 @@ function isElementVisibleAndInViewport(node) {
     offsetRect.bottom > 0 &&
     offsetRect.width !== 0 &&
     offsetRect.height !== 0 &&
-    visibility !== 'hidden' &&
-    transform === 'none'
+    visibility !== 'hidden'
   ) {
     return true
   }
