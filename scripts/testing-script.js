@@ -167,9 +167,11 @@ function addAbsOverlay(rect, orientation) {
     width: ${rect.width}px;
     height: ${rect.height}px;
     z-index: 99000;
+    visibility: visible;
   `
 
-  document.body.appendChild(el)
+  const overlayContainer = document.getElementById('nesting-overlay-container')
+  overlayContainer.appendChild(el)
 }
 
 function stringToTree(data) {

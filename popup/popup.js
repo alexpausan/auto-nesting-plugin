@@ -5,7 +5,7 @@ const buildTrainingDataBtn = document.getElementById('training-data')
 const v11Button = document.getElementById('process-v11')
 const reprocessV11 = document.getElementById('reprocess-v11')
 
-const callGPT = document.getElementById('call-gpt4')
+// const callGPT = document.getElementById('call-gpt4')
 
 let domTree
 let trainingData
@@ -56,16 +56,16 @@ v11Button.addEventListener('click', function () {
   })
 })
 
-callGPT.addEventListener('click', function () {
-  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
-    const currentTab = tabs[0]
-    chrome.scripting.executeScript({
-      target: { tabId: currentTab.id },
-      args: [{ url: currentTab.url }],
-      function: gptCall,
-    })
-  })
-})
+// callGPT.addEventListener('click', function () {
+//   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+//     const currentTab = tabs[0]
+//     chrome.scripting.executeScript({
+//       target: { tabId: currentTab.id },
+//       args: [{ url: currentTab.url }],
+//       function: gptCall,
+//     })
+//   })
+// })
 
 async function gptCall({ url }) {
   const GPT_MODEL = 'gpt-4'
