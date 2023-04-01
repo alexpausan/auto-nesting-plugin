@@ -12,6 +12,26 @@ const ELEMENT_CONTENT =
 
 const DIV_ELEMENT = 'div'
 const LINK_ELEMENT = 'link'
+const SIZES = {
+  UNIT: 16,
+  QUARTER: 4,
+  HALF: 8,
+  THREE_QUARTERS: 12,
+  ONE_AND_HALF: 24,
+  DOUBLE: 32,
+  TRIPLE: 48,
+  QUADRUPLE: 64,
+  QUINTUPLE: 80,
+  SEXTUPLE: 96,
+}
+
+const GAP_TOLLERANCE = 2
+const TEXT_SPACING_TOLLERANCE = 8
+const TEXT_ELEMENT = {
+  text: true,
+  heading: true,
+  link: true,
+}
 
 async function getGPTResponse(trainingData, model) {
   if (!trainingData) {
@@ -138,7 +158,7 @@ function processOpenAIResponse(text, version) {
     return
   }
 
-  tree = computeContainersRectAndOrientation(tree, version)
+  tree = computeContainersRectAndOrientation(tree)
   buildAbsoluteOverlay(tree)
 
   return tree
@@ -272,8 +292,185 @@ function getNodeRectFromString(match = []) {
 }
 
 function computeContainersRectAndOrientation(node = {}) {
-  let { type, rect, children } = node
+  let { children } = node
 
+  if (children?.length) {
+    const childrenRects = children.map(computeContainersRectAndOrientation)
+
+    const childrenCoord = getChildrenCoordinates(childrenRects)
+
+    const parentCoordinates = getParentCoordinates(childrenCoord, node)
+    const orientation = children?.length > 1 ? getOrientationBasedOnRects(childrenCoord) : null
+
+    if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
+      // TODO: First check if GRID, or inline, if neither, then make a new API call
+      console.log('NOT ALIGNED', node)
+    }
+
+    // In checking the gaps between the children, we can identify if the nesting was done correctly
+    const { flexProps, newGroups } = getFlexPropsOrNewGroups(node, childrenRects, orientation)
+
+    if (newGroups) {
+      if (newGroups.length === 2) {
+        const [firstGroup, secondGroup] = newGroups
+
+        const groupToBeWrapped = firstGroup.length > 1 ? firstGroup : secondGroup
+        const individualItem = firstGroup.length === 1 ? firstGroup[0] : secondGroup[0]
+
+        let newContainerNode = {
+          type: 'div',
+          children: groupToBeWrapped,
+        }
+
+        newContainerNode = computeContainersRectAndOrientation(newContainerNode)
+
+        const newContainerOrientation = newContainerNode.orientation
+        const directionProp = newContainerOrientation === ORIENTATION.ROW ? 'left' : 'top'
+
+        node.children = [newContainerNode, individualItem].sort(
+          (a, b) => a.rect[directionProp] - b.rect[directionProp]
+        )
+        console.log(node)
+      } else {
+        // TODO: Make a new API call
+      }
+    }
+
+    if (flexProps) {
+      node.flexProps = flexProps
+    }
+
+    node.rect = parentCoordinates
+    node.orientation = orientation
+  }
+
+  return node
+}
+
+function getFlexPropsOrNewGroups(node, childrenRects, orientation) {
+  if (!orientation || orientation === ORIENTATION.NOT_ALIGNED) {
+    return {}
+  }
+
+  const directionProp = orientation === ORIENTATION.ROW ? 'left' : 'top'
+  const sizeProp = orientation === ORIENTATION.ROW ? 'width' : 'height'
+
+  const childGaps = {}
+  const directionCoordDiffs = {}
+
+  let childrenTotalSizeWithGap = 0
+  let allChildrenAreText = true
+
+  childrenRects.sort((a, b) => a.rect[directionProp] - b.rect[directionProp])
+
+  let prevGap
+  let prevDiff
+
+  for (let i = 0, len = childrenRects.length; i < len - 1; i++) {
+    const currentChild = childrenRects[i]
+    const nextChild = childrenRects[i + 1]
+
+    const currentChildCoordinate = currentChild.rect[directionProp]
+    const nextChildCoordinate = nextChild.rect[directionProp]
+    const currentChildSize = currentChild.rect[sizeProp]
+
+    const gap = nextChildCoordinate - (currentChildCoordinate + currentChildSize)
+    const coordDiff = nextChildCoordinate - currentChildCoordinate
+
+    if (!prevGap) {
+      prevGap = gap
+      prevDiff = coordDiff
+      childGaps[gap] = [currentChild]
+      directionCoordDiffs[coordDiff] = [currentChild]
+
+      continue
+    }
+
+    if (numbersAreAproxEqual(gap, prevGap, GAP_TOLLERANCE)) {
+      childGaps[prevGap].push(currentChild)
+    } else {
+      if (gap > prevGap) {
+        childGaps[prevGap].push(currentChild)
+        childGaps[gap] = []
+      } else {
+        childGaps[gap] = [currentChild]
+      }
+      prevGap = gap
+    }
+
+    if (numbersAreAproxEqual(coordDiff, prevDiff, GAP_TOLLERANCE)) {
+      directionCoordDiffs[prevDiff].push(currentChild)
+    } else {
+      if (coordDiff > prevDiff) {
+        directionCoordDiffs[prevDiff].push(currentChild)
+        directionCoordDiffs[coordDiff] = []
+      } else {
+        directionCoordDiffs[coordDiff] = [currentChild]
+      }
+      prevDiff = coordDiff
+    }
+
+    childrenTotalSizeWithGap += currentChildSize + gap
+
+    // Add the last child size to the total size and the last child to the gaps and diffs
+    if (i === len - 2) {
+      childGaps[prevGap].push(nextChild)
+      directionCoordDiffs[prevDiff].push(nextChild)
+
+      const lastChildSize = nextChild.rect[sizeProp]
+      childrenTotalSizeWithGap += lastChildSize
+    }
+
+    if (!TEXT_ELEMENT[currentChild.type]) {
+      allChildrenAreText = false
+    }
+  }
+
+  const gapKeys = Object.keys(childGaps)
+  const directionCoordKeys = Object.keys(directionCoordDiffs)
+
+  if (allChildrenAreText) {
+    if (textGapsAreSmallerThanTolerance(childGaps)) {
+      return {
+        flexProps: {
+          gap: gapKeys.length === 1 ? gapKeys[0] : 0,
+          justifyContent: 'flex-start',
+        },
+      }
+    }
+  }
+
+  if (gapKeys.length === 1) {
+    return {
+      flexProps: { gap: gapKeys[0] },
+    }
+  }
+  if (directionCoordKeys.length === 1) {
+    return {
+      flexProps: { justifyContent: 'space-between' },
+    }
+  }
+
+  if (gapKeys.length === 2 || directionCoordKeys.length === 2) {
+    const newGroups = gapKeys.length === 2 ? childGaps : directionCoordDiffs
+    return { newGroups: Object.values(newGroups) }
+  }
+
+  console.log('New API Call --- ', childGaps, directionCoordDiffs)
+
+  const newGroups = gapKeys.length < directionCoordKeys.length ? childGaps : directionCoordDiffs
+  return { newGroups: Object.values(newGroups) }
+}
+
+function numbersAreAproxEqual(a, b, tolerance = 0) {
+  return Math.abs(a - b) <= tolerance
+}
+
+function textGapsAreSmallerThanTolerance(gapValues, tolerance = TEXT_SPACING_TOLLERANCE) {
+  return Object.keys(gapValues).every((value) => value < tolerance)
+}
+
+function getChildrenCoordinates(children) {
   const topValues = []
   const bottomValues = []
   const leftValues = []
@@ -284,76 +481,70 @@ function computeContainersRectAndOrientation(node = {}) {
   const xEdges = []
   const yEdges = []
 
-  if (children?.length) {
-    const childrenRects = children.map(computeContainersRectAndOrientation)
+  for (let i = 0; i < children.length; i++) {
+    const child = children[i]
 
-    for (let i = 0; i < childrenRects.length; i++) {
-      const childRect = childrenRects[i]
+    const { top, left, width, height } = child.rect
+    const bottom = top + height
+    const right = left + width
 
-      const { top, left, width, height } = childRect.rect
-      const bottom = top + height
-      const right = left + width
+    topValues.push(top)
+    bottomValues.push(bottom)
+    leftValues.push(left)
+    rightValues.push(right)
 
-      topValues.push(top)
-      bottomValues.push(bottom)
-      leftValues.push(left)
-      rightValues.push(right)
+    verticalPosOfCenter.push(top + height / 2)
+    horizontalPosOfCenter.push(left + width / 2)
 
-      verticalPosOfCenter.push(top + height / 2)
-      horizontalPosOfCenter.push(left + width / 2)
-
-      yEdges.push(top, bottom)
-      xEdges.push(left, right)
-    }
-
-    // First we get all the edges of the children, then we sort them
-    topValues.sort((a, b) => a - b)
-    bottomValues.sort((a, b) => a - b)
-    leftValues.sort((a, b) => a - b)
-    rightValues.sort((a, b) => a - b)
-
-    // Top and Left are the smallest values of the children,
-    // Width and Height are the difference between the biggest right/bottom and the smallest top/left
-    let minTop = topValues[0]
-    let minLeft = leftValues[0]
-    let maxHeight = bottomValues[bottomValues.length - 1] - minTop
-    let maxWidth = rightValues[rightValues.length - 1] - minLeft
-
-    const payload = {
-      topValues,
-      leftValues,
-      bottomValues,
-      rightValues,
-      horizontalPosOfCenter,
-      verticalPosOfCenter,
-      xEdges,
-      yEdges,
-    }
-
-    const orientation = children?.length > 1 ? getOrientationBasedOnRects(payload) : null
-
-    // It's quite common for Anchor elements to have children bigger than themself
-    if (type === LINK_ELEMENT) {
-      const { top, left, width, height } = rect
-
-      minTop = minTop < top ? minTop : top
-      minLeft = minLeft < left ? minLeft : left
-      maxHeight = maxHeight > height ? maxHeight : height
-      maxWidth = maxWidth > width ? maxWidth : width
-    }
-
-    rect = {
-      top: minTop,
-      left: minLeft,
-      height: maxHeight,
-      width: maxWidth,
-    }
-
-    node.rect = rect
-    node.orientation = orientation
+    yEdges.push(top, bottom)
+    xEdges.push(left, right)
   }
 
-  return node
+  // First we get all the edges of the children, then we sort them
+  topValues.sort((a, b) => a - b)
+  bottomValues.sort((a, b) => a - b)
+  leftValues.sort((a, b) => a - b)
+  rightValues.sort((a, b) => a - b)
+
+  return {
+    topValues,
+    leftValues,
+    bottomValues,
+    rightValues,
+    horizontalPosOfCenter,
+    verticalPosOfCenter,
+    yEdges,
+    xEdges,
+  }
+}
+
+function getParentCoordinates(childrenCoordinates, node) {
+  const { topValues, bottomValues, leftValues, rightValues } = childrenCoordinates
+  const { type, rect } = node
+
+  // Top and Left are the smallest values of the children,
+  // Width and Height are the difference between the biggest right/bottom and the smallest top/left
+  let minTop = topValues[0]
+  let minLeft = leftValues[0]
+  let maxHeight = bottomValues[bottomValues.length - 1] - minTop
+  let maxWidth = rightValues[rightValues.length - 1] - minLeft
+
+  // It's quite common for Anchor elements to have children bigger than themself
+  if (type === LINK_ELEMENT) {
+    const { top, left, width, height } = rect
+
+    minTop = minTop < top ? minTop : top
+    minLeft = minLeft < left ? minLeft : left
+    maxHeight = maxHeight > height ? maxHeight : height
+    maxWidth = maxWidth > width ? maxWidth : width
+  }
+
+  return {
+    top: minTop,
+    left: minLeft,
+    height: maxHeight,
+    width: maxWidth,
+  }
 }
 
 function markForTesting({ node, hideElement = false } = {}) {

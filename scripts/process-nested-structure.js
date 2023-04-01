@@ -2,7 +2,7 @@ const ALIGN_THRESHOLD = 5
 const MAX_WIDTH = 1200
 
 function buildResponsiveDesign(props) {
-  const { rootLevelItems, slotItems, version } = props
+  const { rootLevelItems, slotItems, version, reprocess } = props
   console.log(props)
 
   const parent = createOverlaysContainer()
@@ -14,12 +14,25 @@ function buildResponsiveDesign(props) {
     left: 0,
   }
 
-  if (allContainerItemsAreCenteredOnCrossAxis(rootLevelItems, parent)) {
-    parent.style.alignItems = 'center'
+  let processedItems = rootLevelItems
+
+  try {
+    if (reprocess) {
+      processedItems = []
+      for (item of rootLevelItems) {
+        let newTree = computeContainersRectAndOrientation(item)
+        // buildAbsoluteOverlay(newTree)
+        processedItems.push(newTree)
+      }
+    }
+  } catch (e) {
+    console.log(e)
   }
 
+  console.log(processedItems)
+
   // TODO: compute GAP property
-  buildOverlayTree({ nodeList: rootLevelItems, parent, level: 0, offset })
+  buildOverlayTree({ nodeList: processedItems, parent, level: 0, offset })
 }
 
 function buildOverlayTree({ nodeList = [], parent, level = 0, offset }) {
@@ -29,18 +42,16 @@ function buildOverlayTree({ nodeList = [], parent, level = 0, offset }) {
   const directionProp = parentOrientation === ORIENTATION.COL ? 'top' : 'left'
   const sizeProp = parentOrientation === ORIENTATION.COL ? 'height' : 'width'
 
-  if (allContainerItemsAreCenteredOnCrossAxis(nodeList, parent, parentOrientation)) {
-    parent.style.alignItems = 'center'
+  if (
+    parentOrientation === 'row' &&
+    allContainerItemsAreCenteredOnCrossAxis(nodeList, parent, parentOrientation)
+  ) {
+    // parent.style.alignItems = 'center'
   }
 
   if (nodeList?.length) {
     const firstChildPos = nodeList[0]?.rect[directionProp]
     parent.style[paddingProp] = `${firstChildPos - offset[directionProp]}px`
-
-    const firstChildSize = nodeList[0]?.rect[directionProp] + nodeList[0]?.rect[sizeProp]
-    const secondChildPos = nodeList[1]?.rect[directionProp]
-    const gap = secondChildPos - firstChildSize
-    parent.style.gap = `${gap}px`
   }
 
   nodeList.forEach((node) => {
@@ -73,7 +84,7 @@ function buildOverlayTree({ nodeList = [], parent, level = 0, offset }) {
 }
 
 function createDOMElement({ node, level, parent }) {
-  const { type, rect, orientation } = node
+  const { type, rect, orientation, flexProps } = node
   const { rect: parentRect, orientation: parentOrientation } = parent
 
   // Trying to separate span from text.
@@ -85,6 +96,17 @@ function createDOMElement({ node, level, parent }) {
   el.classList.add('nesting-overlay')
   el.style.display = 'flex'
   el.style.backgroundColor = 'rgba(0, 0, 0, 0.1)'
+  el.style.margin = '0'
+
+  if (flexProps) {
+    const { gap, justifyContent } = flexProps
+    if (gap) {
+      el.style.gap = gap + 'px'
+    }
+    if (justifyContent) {
+      el.style.justifyContent = justifyContent
+    }
+  }
 
   if (orientation) {
     el.style.outline = `4px dashed ${ORIENTATION_COLOR[orientation]}`
@@ -111,20 +133,6 @@ function createDOMElement({ node, level, parent }) {
   }
 
   return el
-}
-
-function updateParentElementSpacing(node, parent, parentOrientation) {
-  const { type, rect, children, orientation } = node
-  const { rect: parentRect } = parent
-  const { top, left, width, height } = rect
-  const { top: parentTop, left: parentLeft, width: parentWidth, heigth: parentHeight } = parentRect
-
-  // TODO: explore different options based on orientation
-  if (parentOrientation === ORIENTATION.COL) {
-    parent.style.paddingTop = `${top - parentTop}px`
-  } else {
-    parent.style.paddingLeft = `${left - parentLeft}px`
-  }
 }
 
 function allContainerItemsAreCenteredOnCrossAxis(childList, parent, direction = ORIENTATION.COL) {

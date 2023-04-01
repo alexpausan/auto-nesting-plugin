@@ -137,5 +137,5 @@ async function reprocessData({ url, version }) {
     return
   }
 
-  buildResponsiveDesign({ rootLevelItems, slotItems, version })
+  buildResponsiveDesign({ rootLevelItems, slotItems, version, reprocess: true })
 }

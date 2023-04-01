@@ -281,11 +281,11 @@ function getOrientationBasedOnPosition(nodesList, parentDisplay) {
     leftValues.push(left)
     rightValues.push(right)
 
-    horizontalPosOfCenter.push(left + width / 2)
     verticalPosOfCenter.push(top + height / 2)
+    horizontalPosOfCenter.push(left + width / 2)
 
-    xEdges.push(left, right)
     yEdges.push(top, bottom)
+    xEdges.push(left, right)
 
     const currentNodeStyle = getNodeStyles(node)
     const currentNodeDisplay = currentNodeStyle.display
