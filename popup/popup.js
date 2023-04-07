@@ -100,7 +100,7 @@ async function openAICall({ url, version }) {
   }
 
   const model = MODELS[version]
-  console.log('Processing', model)
+  // console.log('Processing', model)
 
   console.log(trainingData, slotsToProcess)
 
@@ -108,7 +108,7 @@ async function openAICall({ url, version }) {
   let rootLevelItems = await flatToNestedStructure(trainingData, model, version)
   let slotItems = await flatToNestedStructure(slotsToProcess, model, version)
 
-  buildResponsiveDesign({ rootLevelItems, slotItems, version })
+  // buildResponsiveDesign({ rootLevelItems, slotItems, version })
 
   chrome.storage.local.set({ [`${version}-${url}`]: { rootLevelItems, slotItems } })
 }

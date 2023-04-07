@@ -32,7 +32,7 @@ function buildResponsiveDesign(props) {
   console.log(processedItems)
 
   // TODO: compute GAP property
-  buildOverlayTree({ nodeList: processedItems, parent, level: 0, offset })
+  // buildOverlayTree({ nodeList: processedItems, parent, level: 0, offset })
 }
 
 function buildOverlayTree({ nodeList = [], parent, level = 0, offset }) {

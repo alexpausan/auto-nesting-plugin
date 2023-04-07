@@ -153,7 +153,7 @@ function processOpenAIResponse(text, version) {
   text = text.trim() + ']]'
   let tree = stringToTree(text)
 
-  console.log({ text }, tree)
+  // console.log({ text }, tree)
   if (!tree) {
     return
   }
