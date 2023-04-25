@@ -96,7 +96,7 @@ async function callAPIForNestedStructure(flatStructure, model, version) {
   const payload = {
     model,
     temperature: 0,
-    max_tokens: 1200,
+    max_tokens: 1000,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
@@ -218,9 +218,18 @@ function parseStringToTree(string, version = 'v14') {
     string = string.replace(/{/g, '{"type":')
   }
 
-  const tree = JSON.parse(string)
-
-  return formatTree(tree)
+  try {
+    const tree = JSON.parse(string)
+    return formatTree(tree)
+  } catch (error) {
+    console.log(error)
+    try {
+      const tree = JSON.parse(string)
+      return formatTree(tree + ']}')
+    } catch (error) {
+      console.log(error)
+    }
+  }
 }
 
 function formatTree(tree = {}) {
