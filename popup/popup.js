@@ -3,7 +3,9 @@ const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('training-data')
 
 const v11Button = document.getElementById('process-v11')
+const v13Button = document.getElementById('process-v13')
 const reprocessV11 = document.getElementById('reprocess-v11')
+const reprocessV13 = document.getElementById('reprocess-v13')
 
 // const callGPT = document.getElementById('call-gpt4')
 
@@ -56,6 +58,17 @@ v11Button.addEventListener('click', function () {
   })
 })
 
+v13Button.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
+    const currentTab = tabs[0]
+    chrome.scripting.executeScript({
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url, version: 'v13' }],
+      function: openAICall,
+    })
+  })
+})
+
 // callGPT.addEventListener('click', function () {
 //   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
 //     const currentTab = tabs[0]
@@ -86,6 +99,7 @@ async function openAICall({ url, version }) {
   const MODELS = {
     // v7: 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43',
     v11: 'babbage:ft-personal:3003-v11-2023-03-30-13-01-43',
+    v13: 'babbage:ft-personal:0804-v13-2023-04-08-18-14-50',
   }
 
   console.log('Processing', version)
@@ -108,6 +122,9 @@ async function openAICall({ url, version }) {
   let rootLevelItems = await flatToNestedStructure(trainingData, model, version)
   let slotItems = await flatToNestedStructure(slotsToProcess, model, version)
 
+  rootLevelItems = buildContainerDataAndOrientation(rootLevelItems)
+  slotItems = buildContainerDataAndOrientation(slotItems)
+
   // buildResponsiveDesign({ rootLevelItems, slotItems, version })
 
   chrome.storage.local.set({ [`${version}-${url}`]: { rootLevelItems, slotItems } })
@@ -120,6 +137,18 @@ reprocessV11.addEventListener('click', function () {
     chrome.scripting.executeScript({
       target: { tabId: currentTab.id },
       args: [{ url: currentTab.url, version: 'v11' }],
+      function: reprocessData,
+    })
+  })
+})
+
+reprocessV13.addEventListener('click', function () {
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0]
+
+    chrome.scripting.executeScript({
+      target: { tabId: currentTab.id },
+      args: [{ url: currentTab.url, version: 'v13' }],
       function: reprocessData,
     })
   })

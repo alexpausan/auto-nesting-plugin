@@ -2,16 +2,20 @@ let docHeight
 let docWidth
 
 let testing = false
+const localhost = 'http://localhost:3000/'
+const testingOnLocalHost = window.location.href === localhost
 
 function getDOMData(testingVersion) {
   const body = document.body
+
+  const rootNode = testingOnLocalHost ? document.getElementsByClassName('canvas')[0] : body
 
   docHeight = body.scrollHeight
   docWidth = body.scrollWidth
 
   // Used only to test the plugin
   testing = testingVersion
-  let result = getTreeData(body)
+  let result = getTreeData(rootNode)
 
   return result
 }
@@ -413,6 +417,10 @@ function getOrientationBasedOnRects(props, tryNr = 0) {
 }
 
 function hasAbsolutePosition(node) {
+  if (testingOnLocalHost) {
+    return false
+  }
+
   while (node && node !== document.body) {
     const styles = getNodeStyles(node)
     const rect = getNodeRect(node)
@@ -543,6 +551,10 @@ function divHasVisibleBackgroundOrBorder(node) {
 }
 
 function hasAbsoluteChild(node) {
+  if (testingOnLocalHost) {
+    return false
+  }
+
   for (const child of node.children) {
     const style = window.getComputedStyle(child)
     if (style.position === 'absolute') {
