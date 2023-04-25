@@ -2,14 +2,11 @@
 const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('training-data')
 
-// const v13Button = document.getElementById('process-v13')
 const v14Button = document.getElementById('process-v14')
-const v15Button = document.getElementById('process-v15')
-const v16Button = document.getElementById('process-v16')
-// const reprocessV13 = document.getElementById('reprocess-v13')
+const v17Button = document.getElementById('process-v17')
+
 const reprocessV14 = document.getElementById('reprocess-v14')
-const reprocessV15 = document.getElementById('reprocess-v15')
-const reprocessV16 = document.getElementById('reprocess-v16')
+const reprocessV17 = document.getElementById('reprocess-v17')
 
 // const callGPT = document.getElementById('call-gpt4')
 
@@ -53,8 +50,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
 
 // v13Button.addEventListener('click', () => callAPIHandler('v13'))
 v14Button.addEventListener('click', () => callAPIHandler('v14'))
-v15Button.addEventListener('click', () => callAPIHandler('v15'))
-v16Button.addEventListener('click', () => callAPIHandler('v16'))
+v17Button.addEventListener('click', () => callAPIHandler('v17'))
 
 function callAPIHandler(version = 'v14') {
   chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
@@ -88,8 +84,7 @@ async function openAICall({ url, version }) {
     // v11: 'babbage:ft-personal:3003-v11-2023-03-30-13-01-43',
     // v13: 'babbage:ft-personal:0804-v13-2023-04-08-18-14-50',
     v14: 'babbage:ft-personal:2404-v14-2023-04-24-20-25-25',
-    v15: 'babbage:ft-personal:2404-v15-2023-04-24-21-07-56',
-    v16: 'babbage:ft-personal:2404-v16-2023-04-24-21-49-58',
+    v17: 'babbage:ft-personal:2404-v17-2023-04-25-12-42-32',
   }
 
   console.log('Processing', version)
@@ -119,8 +114,7 @@ async function openAICall({ url, version }) {
 }
 
 reprocessV14.addEventListener('click', () => reprocessHandler('v14'))
-reprocessV15.addEventListener('click', () => reprocessHandler('v15'))
-reprocessV16.addEventListener('click', () => reprocessHandler('v16'))
+reprocessV17.addEventListener('click', () => reprocessHandler('v17'))
 
 function reprocessHandler(version = 'v14') {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {

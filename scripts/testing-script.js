@@ -25,7 +25,7 @@ const SIZES = {
   SEXTUPLE: 96,
 }
 
-const GAP_TOLLERANCE = 2
+const GAP_TOLLERANCE = 5
 const TEXT_SPACING_TOLLERANCE = 8
 const TEXT_ELEMENT = {
   text: true,
@@ -175,6 +175,10 @@ function buildContainerDataAndOrientation(nodeList) {
 }
 
 function buildAbsoluteOverlay(node) {
+  if (!node) {
+    return
+  }
+
   let { rect, children, orientation } = node
 
   if (children?.length && rect) {
@@ -205,7 +209,7 @@ function addAbsOverlay(rect, orientation) {
 }
 
 function parseStringToTree(string, version = 'v14') {
-  string = string
+  const preparedString = string
     .replace(/{/g, '{"')
     .replace(/:/g, '":"')
     .replace(/,/g, '","')
@@ -214,20 +218,16 @@ function parseStringToTree(string, version = 'v14') {
     .replace(/}/g, '"}')
     .replace(/]"}/g, ']}')
 
-  if (version !== 'v14') {
-    string = string.replace(/{/g, '{"type":')
-  }
-
   try {
-    const tree = JSON.parse(string)
+    const tree = JSON.parse(preparedString)
     return formatTree(tree)
   } catch (error) {
-    console.log(error)
+    console.log(error, preparedString)
     try {
-      const tree = JSON.parse(string)
+      const tree = JSON.parse(preparedString)
       return formatTree(tree + ']}')
     } catch (error) {
-      console.log(error)
+      console.log(error, preparedString)
     }
   }
 }
@@ -403,37 +403,37 @@ function computeContainersRectAndOrientation(node = {}) {
     }
 
     // In checking the gaps between the children, we can identify if the nesting was done correctly
-    const { flexProps, newGroups } = getFlexPropsOrNewGroups(node, childrenRects, orientation)
+    // const { flexProps, newGroups } = getFlexPropsOrNewGroups(node, childrenRects, orientation)
 
-    if (newGroups) {
-      if (newGroups.length === 2) {
-        const [firstGroup, secondGroup] = newGroups
+    // if (newGroups) {
+    //   if (newGroups.length === 2) {
+    //     const [firstGroup, secondGroup] = newGroups
 
-        const groupToBeWrapped = firstGroup.length > 1 ? firstGroup : secondGroup
-        const individualItem = firstGroup.length === 1 ? firstGroup[0] : secondGroup[0]
+    //     const groupToBeWrapped = firstGroup.length > 1 ? firstGroup : secondGroup
+    //     const individualItem = firstGroup.length === 1 ? firstGroup[0] : secondGroup[0]
 
-        let newContainerNode = {
-          type: 'div',
-          children: groupToBeWrapped,
-        }
+    //     let newContainerNode = {
+    //       type: 'div',
+    //       children: groupToBeWrapped,
+    //     }
 
-        newContainerNode = computeContainersRectAndOrientation(newContainerNode)
+    //     newContainerNode = computeContainersRectAndOrientation(newContainerNode)
 
-        const newContainerOrientation = newContainerNode.orientation
-        const directionProp = newContainerOrientation === ORIENTATION.ROW ? 'left' : 'top'
+    //     const newContainerOrientation = newContainerNode.orientation
+    //     const directionProp = newContainerOrientation === ORIENTATION.ROW ? 'left' : 'top'
 
-        node.children = [newContainerNode, individualItem].sort(
-          (a, b) => a.rect[directionProp] - b.rect[directionProp]
-        )
-        console.log(node)
-      } else {
-        // TODO: Make a new API call
-      }
-    }
+    //     node.children = [newContainerNode, individualItem].sort(
+    //       (a, b) => a.rect[directionProp] - b.rect[directionProp]
+    //     )
+    //     console.log(node)
+    //   } else {
+    //     // TODO: Make a new API call
+    //   }
+    // }
 
-    if (flexProps) {
-      node.flexProps = flexProps
-    }
+    // if (flexProps) {
+    //   node.flexProps = flexProps
+    // }
 
     node.rect = parentCoordinates
     node.orientation = orientation

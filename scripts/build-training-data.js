@@ -113,7 +113,7 @@ const buildPrompt = (props) => {
   markForTesting({ node })
 
   const typePrefix = version === 'v14' ? 'type:' : ''
-  let result = elType !== DIV_LABELS.DIV ? `{${typePrefix}${elType},${rectData}}` : NO_DATA
+  let result = elType !== DIV_LABELS.DIV ? `{type:${elType},${rectData}}` : NO_DATA
 
   if (!children?.length) {
     return result
@@ -135,7 +135,7 @@ const buildPrompt = (props) => {
 
     // Visible divs are added in separate prompts
     if (divIsVisible && !reparsingSlot) {
-      result = `{${typePrefix}${DIV_LABELS.SLOT},${rectData}}`
+      result = `{type:${DIV_LABELS.SLOT},${rectData}}`
       const slotID = result
 
       if (!slotsToBuildTrainingDataFor[slotID]) {
@@ -173,9 +173,7 @@ const buildCompletion = (props) => {
 
   let result
 
-  const typePrefix = version === 'v14' ? 'type:' : ''
-  result =
-    elType === DIV_LABELS.DIV ? `{${typePrefix}${elType}` : `{${typePrefix}${elType},${rectData}`
+  result = elType === DIV_LABELS.DIV ? `{type:${elType}` : `{type:${elType},${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
@@ -188,7 +186,7 @@ const buildCompletion = (props) => {
 
   // Visible divs are returned as slots and also added in separate prompts
   if (elType === DIV_LABELS.DIV && divHasVisibleStyles(node) && !reparsingSlot) {
-    return `{${typePrefix}${DIV_LABELS.SLOT},${rectData}}`
+    return `{type:${DIV_LABELS.SLOT},${rectData}}`
   }
 
   result += ',children:['
