@@ -407,6 +407,17 @@ function getOrientationBasedOnRects(props, tryNr = 0) {
     return ORIENTATION.BLOCK_INLINE
   }
 
+  let gridOrFlexWrap = isGridOrFlexWrap(horizontalPosOfCenter, verticalPosOfCenter)
+  if (gridOrFlexWrap) {
+    return gridOrFlexWrap
+  }
+
+  // We check again for Top/Left. There may be Grids with content aligned to the top/left instead of center
+  gridOrFlexWrap = isGridOrFlexWrap(leftValues, topValues)
+  if (gridOrFlexWrap) {
+    return gridOrFlexWrap
+  }
+
   // If still not aligned, we call the function again, with a higher tolerance
   if (tryNr === 0) {
     props.alignmentTolerance = ALIGNMENT_TOLERANCE * 2
@@ -414,6 +425,51 @@ function getOrientationBasedOnRects(props, tryNr = 0) {
   }
 
   return ORIENTATION.NOT_ALIGNED
+}
+
+function isGridOrFlexWrap(horCoords, vertCoords) {
+  // First we check if the nr of occurrences (rows and cols) of each value is the same and > 1
+  let rowsNr = 1
+  let colsNr = 1
+  let prevRowCoordinate = vertCoords[0]
+  let prevColCoordinate = horCoords[0]
+
+  for (verticalPos of vertCoords) {
+    if (verticalPos > prevRowCoordinate) {
+      prevRowCoordinate = verticalPos
+      rowsNr++
+    }
+  }
+
+  for (horizontalPos of horCoords) {
+    if (horizontalPos > prevColCoordinate) {
+      prevColCoordinate = horizontalPos
+      colsNr++
+    }
+  }
+  const horizontalValues = horCoords.length
+  const verticalValues = vertCoords.length
+
+  if (rowsNr === verticalValues || colsNr === horizontalValues) {
+    return
+  }
+
+  // Now we check if the nr of unique values is the same as the nr of rows/cols
+  const uniqueHorValues = [...new Set(horCoords)].length
+  const uniqueVertValues = [...new Set(vertCoords)].length
+
+  // TODO:, explore preffering grids over row_wr/col_wr ?
+  if (uniqueHorValues === colsNr && uniqueVertValues === rowsNr) {
+    if (
+      uniqueHorValues * rowsNr === horizontalValues &&
+      uniqueVertValues * colsNr === verticalValues
+    ) {
+      console.log('----- ----- - - ---- ', ORIENTATION.GRID)
+      return ORIENTATION.GRID
+    }
+    console.log('----- ----- - - ---- ', colsNr > rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR)
+    return colsNr >= rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR
+  }
 }
 
 function hasAbsolutePosition(node) {

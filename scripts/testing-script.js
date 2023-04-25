@@ -174,6 +174,24 @@ function buildContainerDataAndOrientation(nodeList) {
   }
 }
 
+async function reprocessUnalignedItems(nodeList) {
+  if (!nodeList?.length) {
+    return
+  }
+
+  try {
+    return nodeList.map((node) => {
+      const updatedNode = computeContainersRectAndOrientation(node)
+
+      return updatedNode
+    })
+  } catch (error) {
+    console.error(error)
+  }
+}
+
+function secondCheckForAlignment(nodeList) {}
+
 function buildAbsoluteOverlay(node) {
   if (!node) {
     return
@@ -261,103 +279,6 @@ function formatTree(tree = {}) {
   return tree
 }
 
-function stringToTree(data, includeAllCoordinates = false) {
-  if (!data) {
-    return null
-  }
-
-  const stack = []
-  let root = null
-  let currentNode = null
-  let index = 0
-  let dataLength = data.length
-
-  while (index < dataLength) {
-    let currentText = data.substring(index)
-
-    if (DIV_START.test(currentText)) {
-      if (!root) {
-        root = { type: DIV_ELEMENT, children: [] }
-        currentNode = root
-      } else {
-        const newNode = { type: DIV_ELEMENT, children: [] }
-
-        if (!currentNode) {
-          currentNode = root
-          console.info('ERROR - data generation')
-        }
-
-        currentNode.children = currentNode.children || []
-        currentNode.children.push(newNode)
-        stack.push(currentNode)
-        currentNode = newNode
-      }
-
-      index += DIV_PATERN_LENGTH
-      continue
-    }
-
-    if (PARENT_END.test(currentText)) {
-      currentNode = stack.pop()
-      index++
-      continue
-    }
-
-    let match = currentText.match(ELEMENT_CONTENT)
-    if (!match) {
-      console.log('ERROR - data generation', root, currentNode)
-      console.log(currentText)
-      console.log(data)
-    }
-    match = match || []
-    const elementType = match[1]
-
-    const newNode = {
-      type: elementType,
-      rect: getNodeRectFromString(match),
-    }
-
-    if (!match) {
-      return null
-    }
-
-    index += match[0].length
-    currentText = currentText.substring(match[0].length)
-
-    if (!currentNode) {
-      currentNode = root
-      console.info('ERR - 222  - data generation')
-    }
-
-    if (ELEMENT_END.test(currentText)) {
-      currentNode.children.push(newNode)
-      index++
-      continue
-    }
-
-    newNode.children = []
-    currentNode.children.push(newNode)
-    stack.push(currentNode)
-    currentNode = newNode
-  }
-
-  return root
-}
-
-function getNodeRectFromString(match = []) {
-  const top = parseInt(match[2], 10)
-  const left = parseInt(match[3], 10)
-  const height = parseInt(match[4], 10)
-  const width = parseInt(match[5], 10)
-
-  return {
-    top,
-    left,
-    height,
-    width,
-  }
-}
-
 function rebuildPrompt(node = {}, onlyOneLevel = true, level = 0) {
   const { children, rect, type: elType } = node
   const rectData = rect ? getRectData(rect) : ''
@@ -396,10 +317,7 @@ function computeContainersRectAndOrientation(node = {}) {
     const orientation = children?.length > 1 ? getOrientationBasedOnRects(childrenCoord) : null
 
     if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
-      // TODO: First check if GRID, or inline, if neither, then make a new API call
-      const newPrompt = rebuildPrompt(node)
-
-      console.log('NOT ALIGNED', node, newPrompt)
+      console.log('NOT ALIGNED', node)
     }
 
     // In checking the gaps between the children, we can identify if the nesting was done correctly

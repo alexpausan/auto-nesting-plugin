@@ -108,6 +108,9 @@ async function openAICall({ url, version }) {
   rootLevelItems = buildContainerDataAndOrientation(rootLevelItems)
   slotItems = buildContainerDataAndOrientation(slotItems)
 
+  rootLevelItems = await reprocessUnalignedItems(rootLevelItems)
+  slotItems = await reprocessUnalignedItems(slotItems)
+
   // buildResponsiveDesign({ rootLevelItems, slotItems, version })
 
   chrome.storage.local.set({ [`${version}-${url}`]: { rootLevelItems, slotItems } })
