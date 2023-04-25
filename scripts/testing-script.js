@@ -85,7 +85,7 @@ async function getGPTResponse(trainingData, model) {
   console.log(t1 - t0, 'milliseconds')
 }
 
-async function flatToNestedStructure(flatStructure, model, version) {
+async function callAPIForNestedStructure(flatStructure, model, version) {
   if (!flatStructure) {
     return
   }
@@ -100,7 +100,7 @@ async function flatToNestedStructure(flatStructure, model, version) {
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
-    stop: [']] END'],
+    stop: ['}]} END'],
   }
 
   flatStructure.forEach((item) => {
@@ -150,8 +150,8 @@ function processOpenAIResponse(text, version) {
     return
   }
 
-  text = text.trim() + ']]'
-  let tree = stringToTree(text)
+  text = text.trim() + '}]}'
+  let tree = parseStringToTree(text)
 
   return tree
 }
@@ -204,8 +204,8 @@ function addAbsOverlay(rect, orientation) {
   overlayContainer.appendChild(el)
 }
 
-function parseNewFormatToTree(data) {
-  data
+function parseStringToTree(string) {
+  string = string
     .replace(/{/g, '{"')
     .replace(/:/g, '":"')
     .replace(/,/g, '","')
@@ -214,8 +214,38 @@ function parseNewFormatToTree(data) {
     .replace(/}/g, '"}')
     .replace(/]"}/g, ']}')
 
-  data =
-    '{heading, top:147,  bottom:175, left:322, right:1632, height:28, width:1310}{text, top:175,  bottom:196, left:322, right:1632, height:21, width:1310}'
+  const tree = JSON.parse(string)
+
+  return formatTree(tree)
+}
+
+function formatTree(tree = {}) {
+  if (!tree) {
+    return
+  }
+
+  const { type, children } = tree
+
+  if (type !== DIV_ELEMENT) {
+    const { top, left, height, width } = tree
+
+    tree = {
+      type,
+      rect: {
+        top: parseInt(top),
+        left: parseInt(left),
+        height: parseInt(height),
+        width: parseInt(width),
+      },
+    }
+  }
+  if (!children?.length) {
+    return tree
+  }
+
+  tree.children = children.map((child) => formatTree(child))
+
+  return tree
 }
 
 function stringToTree(data, includeAllCoordinates = false) {

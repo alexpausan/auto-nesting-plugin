@@ -112,7 +112,8 @@ const buildPrompt = (props) => {
 
   markForTesting({ node })
 
-  let result = elType !== DIV_LABELS.DIV ? `{type:${elType},${rectData}}` : NO_DATA
+  const typePrefix = version === 'v14' ? 'type:' : ''
+  let result = elType !== DIV_LABELS.DIV ? `{${typePrefix}${elType},${rectData}}` : NO_DATA
 
   if (!children?.length) {
     return result
@@ -134,7 +135,7 @@ const buildPrompt = (props) => {
 
     // Visible divs are added in separate prompts
     if (divIsVisible && !reparsingSlot) {
-      result = `{type:${DIV_LABELS.SLOT},${rectData}}`
+      result = `{${typePrefix}${DIV_LABELS.SLOT},${rectData}}`
       const slotID = result
 
       if (!slotsToBuildTrainingDataFor[slotID]) {
@@ -172,7 +173,9 @@ const buildCompletion = (props) => {
 
   let result
 
-  result = elType === DIV_LABELS.DIV ? `{type:${elType}` : `{type:${elType},${rectData}`
+  const typePrefix = version === 'v14' ? 'type:' : ''
+  result =
+    elType === DIV_LABELS.DIV ? `{${typePrefix}${elType}` : `{${typePrefix}${elType},${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
@@ -185,7 +188,7 @@ const buildCompletion = (props) => {
 
   // Visible divs are returned as slots and also added in separate prompts
   if (elType === DIV_LABELS.DIV && divHasVisibleStyles(node) && !reparsingSlot) {
-    return `{type:${DIV_LABELS.SLOT},${rectData}}`
+    return `{${typePrefix}${DIV_LABELS.SLOT},${rectData}}`
   }
 
   result += ',children:['
@@ -240,19 +243,15 @@ const getElType = (node) => {
     : CONTENT_TAG_LABEL[tag]
 }
 
-const getRectData = (rect, topOffset = 0, includeAllCoordinates = true, jsonFormat = true) => {
+const getRectData = (rect, topOffset = 0, version = 'v14') => {
   const { top, left, width, height } = rect
   const newTop = top - topOffset
   const bottom = newTop + height
   const right = left + width
 
-  if (jsonFormat) {
-    return `top:${newTop},left:${left},height:${height},width:${width}`
-  }
-
-  return includeAllCoordinates
-    ? `top${newTop} bottom${bottom} left${left} right${right} height${height} width${width}`
-    : `top${newTop} left${left} height${height} width${width}`
+  return version === 'v16'
+    ? `top:${newTop},bottom:${bottom},left:${left},right:${right},height:${height},width:${width}`
+    : `top:${newTop},left:${left},height:${height},width:${width}`
 }
 
 const enrichData = (trainingData = []) => {
