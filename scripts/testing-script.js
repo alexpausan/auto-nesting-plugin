@@ -153,15 +153,25 @@ function processOpenAIResponse(text, version) {
   text = text.trim() + ']]'
   let tree = stringToTree(text)
 
+  return tree
+}
+
+function buildContainerDataAndOrientation(nodeList) {
   // console.log({ text }, tree)
-  if (!tree) {
+  if (!nodeList?.length) {
     return
   }
 
-  tree = computeContainersRectAndOrientation(tree)
-  buildAbsoluteOverlay(tree)
+  try {
+    return nodeList.map((node) => {
+      const updatedNode = computeContainersRectAndOrientation(node)
+      buildAbsoluteOverlay(updatedNode)
 
-  return tree
+      return updatedNode
+    })
+  } catch (error) {
+    console.error(error)
+  }
 }
 
 function buildAbsoluteOverlay(node) {
@@ -194,7 +204,21 @@ function addAbsOverlay(rect, orientation) {
   overlayContainer.appendChild(el)
 }
 
-function stringToTree(data) {
+function parseNewFormatToTree(data) {
+  data
+    .replace(/{/g, '{"')
+    .replace(/:/g, '":"')
+    .replace(/,/g, '","')
+    .replace(/"\[/g, '[')
+    .replace(/}{/g, '},{')
+    .replace(/}/g, '"}')
+    .replace(/]"}/g, ']}')
+
+  data =
+    '{heading, top:147,  bottom:175, left:322, right:1632, height:28, width:1310}{text, top:175,  bottom:196, left:322, right:1632, height:21, width:1310}'
+}
+
+function stringToTree(data, includeAllCoordinates = false) {
   if (!data) {
     return null
   }
@@ -291,6 +315,32 @@ function getNodeRectFromString(match = []) {
   }
 }
 
+function rebuildPrompt(node = {}, onlyOneLevel = true, level = 0) {
+  const { children, rect, type: elType } = node
+  const rectData = rect ? getRectData(rect) : ''
+
+  let result = elType !== DIV_LABELS.DIV && rect ? `[${elType} ${rectData}]` : NO_DATA
+
+  if (!children?.length) {
+    return result
+  }
+
+  if (elType !== DIV_LABELS.DIV && elType !== CONTENT_TAG_LABEL.A) {
+    return result
+  }
+
+  if (onlyOneLevel && level > 0) {
+    return result
+  }
+
+  let childrenData = ''
+  children.forEach((child) => {
+    childrenData += rebuildPrompt(child, onlyOneLevel, level + 1)
+  })
+
+  return result + childrenData
+}
+
 function computeContainersRectAndOrientation(node = {}) {
   let { children } = node
 
@@ -304,7 +354,9 @@ function computeContainersRectAndOrientation(node = {}) {
 
     if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
       // TODO: First check if GRID, or inline, if neither, then make a new API call
-      console.log('NOT ALIGNED', node)
+      const newPrompt = rebuildPrompt(node)
+
+      console.log('NOT ALIGNED', node, newPrompt)
     }
 
     // In checking the gaps between the children, we can identify if the nesting was done correctly

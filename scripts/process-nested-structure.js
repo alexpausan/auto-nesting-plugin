@@ -21,7 +21,13 @@ function buildResponsiveDesign(props) {
       processedItems = []
       for (item of rootLevelItems) {
         let newTree = computeContainersRectAndOrientation(item)
-        // buildAbsoluteOverlay(newTree)
+        buildAbsoluteOverlay(newTree)
+        processedItems.push(newTree)
+      }
+
+      for (item of slotItems) {
+        let newTree = computeContainersRectAndOrientation(item)
+        buildAbsoluteOverlay(newTree)
         processedItems.push(newTree)
       }
     }

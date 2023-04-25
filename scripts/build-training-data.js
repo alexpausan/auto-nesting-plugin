@@ -32,7 +32,7 @@ const buildTrainingData = (props) => {
   const result = []
 
   // If the node is not aligned, we go recursively through the children
-  if (orientation === ORIENTATION.NOT_ALIGNED) {
+  if (!testingOnLocalHost && orientation === ORIENTATION.NOT_ALIGNED) {
     if (!children?.length || CONTENT_TAGS[nodeName]) {
       return null
     }
@@ -112,7 +112,7 @@ const buildPrompt = (props) => {
 
   markForTesting({ node })
 
-  let result = elType !== DIV_LABELS.DIV ? `[${elType} ${rectData}]` : NO_DATA
+  let result = elType !== DIV_LABELS.DIV ? `{type:${elType},${rectData}}` : NO_DATA
 
   if (!children?.length) {
     return result
@@ -134,7 +134,7 @@ const buildPrompt = (props) => {
 
     // Visible divs are added in separate prompts
     if (divIsVisible && !reparsingSlot) {
-      result = `[${DIV_LABELS.SLOT} ${rectData}]`
+      result = `{type:${DIV_LABELS.SLOT},${rectData}}`
       const slotID = result
 
       if (!slotsToBuildTrainingDataFor[slotID]) {
@@ -172,38 +172,38 @@ const buildCompletion = (props) => {
 
   let result
 
-  // TODO: if v8 will be used again, compute the rect data from the children rect data ->
-  // To include updated rect around the content
-  if (version === 'v8') {
-    result = `[${elType} ${rectData}`
-  } else {
-    result = elType === DIV_LABELS.DIV ? `[${elType}` : `[${elType} ${rectData}`
-  }
+  result = elType === DIV_LABELS.DIV ? `{type:${elType}` : `{type:${elType},${rectData}`
 
   // For any type of element that is a leaf, we include the rect data
   if (!children?.length) {
-    return `${result}]`
+    return `${result}}`
   }
 
   if (CONTENT_TAGS[nodeName] && nodeName !== NODE_NAME.ANCHOR) {
-    return `${result}]`
+    return `${result}}`
   }
 
   // Visible divs are returned as slots and also added in separate prompts
   if (elType === DIV_LABELS.DIV && divHasVisibleStyles(node) && !reparsingSlot) {
-    return `[${DIV_LABELS.SLOT} ${rectData}]`
+    return `{type:${DIV_LABELS.SLOT},${rectData}}`
   }
+
+  result += ',children:['
 
   children.forEach((child) => {
     result += buildCompletion({ ...props, node: child })
   })
 
-  return `${result}]`
+  return `${result}]}`
 }
 
 const adjustScrollPosition = () => Math.random() <= SCROLL_ADJUSTMENT_PERCENTAGE
 
 const isAbsolutePosOrUnaligned = (node) => {
+  if (testingOnLocalHost) {
+    return false
+  }
+
   const { children, orientation, styles, rect } = node
   const { top, width, height } = rect
 
@@ -240,9 +240,19 @@ const getElType = (node) => {
     : CONTENT_TAG_LABEL[tag]
 }
 
-const getRectData = (rect, topOffset = 0, version) => {
+const getRectData = (rect, topOffset = 0, includeAllCoordinates = true, jsonFormat = true) => {
   const { top, left, width, height } = rect
-  return `top${top - topOffset} left${left} height${height} width${width}`
+  const newTop = top - topOffset
+  const bottom = newTop + height
+  const right = left + width
+
+  if (jsonFormat) {
+    return `top:${newTop},left:${left},height:${height},width:${width}`
+  }
+
+  return includeAllCoordinates
+    ? `top${newTop} bottom${bottom} left${left} right${right} height${height} width${width}`
+    : `top${newTop} left${left} height${height} width${width}`
 }
 
 const enrichData = (trainingData = []) => {
