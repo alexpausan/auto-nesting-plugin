@@ -96,7 +96,7 @@ async function callAPIForNestedStructure(flatStructure, model, version) {
   const payload = {
     model,
     temperature: 0,
-    max_tokens: 1500,
+    max_tokens: 1200,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
@@ -151,7 +151,7 @@ function processOpenAIResponse(text, version) {
   }
 
   text = text.trim() + '}]}'
-  let tree = parseStringToTree(text)
+  let tree = parseStringToTree(text, version)
 
   return tree
 }
@@ -204,7 +204,7 @@ function addAbsOverlay(rect, orientation) {
   overlayContainer.appendChild(el)
 }
 
-function parseStringToTree(string) {
+function parseStringToTree(string, version = 'v14') {
   string = string
     .replace(/{/g, '{"')
     .replace(/:/g, '":"')
@@ -213,6 +213,10 @@ function parseStringToTree(string) {
     .replace(/}{/g, '},{')
     .replace(/}/g, '"}')
     .replace(/]"}/g, ']}')
+
+  if (version !== 'v14') {
+    string = string.replace(/{/g, '{"type":')
+  }
 
   const tree = JSON.parse(string)
 
