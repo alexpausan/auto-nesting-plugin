@@ -2,10 +2,10 @@
 const getTree = document.getElementById('get-tree')
 const buildTrainingDataBtn = document.getElementById('training-data')
 
-const v14Button = document.getElementById('process-v14')
+// const v14Button = document.getElementById('process-v14')
 const v17Button = document.getElementById('process-v17')
 
-const reprocessV14 = document.getElementById('reprocess-v14')
+// const reprocessV14 = document.getElementById('reprocess-v14')
 const reprocessV17 = document.getElementById('reprocess-v17')
 
 // const callGPT = document.getElementById('call-gpt4')
@@ -49,7 +49,7 @@ buildTrainingDataBtn.addEventListener('click', function () {
 })
 
 // v13Button.addEventListener('click', () => callAPIHandler('v13'))
-v14Button.addEventListener('click', () => callAPIHandler('v14'))
+// v14Button.addEventListener('click', () => callAPIHandler('v14'))
 v17Button.addEventListener('click', () => callAPIHandler('v17'))
 
 function callAPIHandler(version = 'v14') {
@@ -83,7 +83,7 @@ async function openAICall({ url, version }) {
     // v7: 'babbage:ft-personal:2603-v7-2023-03-26-09-14-43',
     // v11: 'babbage:ft-personal:3003-v11-2023-03-30-13-01-43',
     // v13: 'babbage:ft-personal:0804-v13-2023-04-08-18-14-50',
-    v14: 'babbage:ft-personal:2404-v14-2023-04-24-20-25-25',
+    // v14: 'babbage:ft-personal:2404-v14-2023-04-24-20-25-25',
     v17: 'babbage:ft-personal:2404-v17-2023-04-25-12-42-32',
   }
 
@@ -105,21 +105,21 @@ async function openAICall({ url, version }) {
   let rootLevelItems = await callAPIForNestedStructure(trainingData, model, version)
   let slotItems = await callAPIForNestedStructure(slotsToProcess, model, version)
 
-  rootLevelItems = buildContainerDataAndOrientation(rootLevelItems)
-  slotItems = buildContainerDataAndOrientation(slotItems)
+  // rootLevelItems = buildContainerDataAndOrientation(rootLevelItems)
+  // slotItems = buildContainerDataAndOrientation(slotItems)
 
-  rootLevelItems = await reprocessUnalignedItems(rootLevelItems)
-  slotItems = await reprocessUnalignedItems(slotItems)
+  // rootLevelItems = await reprocessUnalignedItems(rootLevelItems)
+  // slotItems = await reprocessUnalignedItems(slotItems)
 
   // buildResponsiveDesign({ rootLevelItems, slotItems, version })
 
   chrome.storage.local.set({ [`${version}-${url}`]: { rootLevelItems, slotItems } })
 }
 
-reprocessV14.addEventListener('click', () => reprocessHandler('v14'))
+// reprocessV14.addEventListener('click', () => reprocessHandler('v14'))
 reprocessV17.addEventListener('click', () => reprocessHandler('v17'))
 
-function reprocessHandler(version = 'v14') {
+function reprocessHandler(version = 'v17') {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
     const currentTab = tabs[0]
 

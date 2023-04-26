@@ -467,8 +467,8 @@ function isGridOrFlexWrap(horCoords, vertCoords) {
       console.log('----- ----- - - ---- ', ORIENTATION.GRID)
       return ORIENTATION.GRID
     }
-    console.log('----- ----- - - ---- ', colsNr > rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR)
-    return colsNr >= rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR
+    // console.log('----- ----- - - ---- ', colsNr > rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR)
+    // return colsNr >= rowsNr ? ORIENTATION.ROW_WR : ORIENTATION.COL_WR
   }
 }
 

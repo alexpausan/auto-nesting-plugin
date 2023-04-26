@@ -1,7 +1,7 @@
 const ALIGN_THRESHOLD = 5
 const MAX_WIDTH = 1200
 
-function buildResponsiveDesign(props) {
+async function buildResponsiveDesign(props) {
   const { rootLevelItems, slotItems, version, reprocess } = props
   console.log(props)
 
@@ -20,13 +20,13 @@ function buildResponsiveDesign(props) {
     if (reprocess) {
       processedItems = []
       for (item of rootLevelItems) {
-        let newTree = computeContainersRectAndOrientation(item)
+        let newTree = await computeContainersRectAndOrientation(item)
         buildAbsoluteOverlay(newTree)
         processedItems.push(newTree)
       }
 
       for (item of slotItems) {
-        let newTree = computeContainersRectAndOrientation(item)
+        let newTree = await computeContainersRectAndOrientation(item)
         buildAbsoluteOverlay(newTree)
         processedItems.push(newTree)
       }
@@ -35,7 +35,7 @@ function buildResponsiveDesign(props) {
     console.log(e)
   }
 
-  console.log(processedItems)
+  // console.log(processedItems)
 
   // TODO: compute GAP property
   // buildOverlayTree({ nodeList: processedItems, parent, level: 0, offset })

@@ -33,6 +33,10 @@ const TEXT_ELEMENT = {
   link: true,
 }
 
+const COMPLETION_CLOSING = '}]}'
+
+const retried_prompts = []
+
 async function getGPTResponse(trainingData, model) {
   if (!trainingData) {
     return
@@ -85,109 +89,70 @@ async function getGPTResponse(trainingData, model) {
   console.log(t1 - t0, 'milliseconds')
 }
 
-async function callAPIForNestedStructure(flatStructure, model, version) {
-  if (!flatStructure) {
-    return
-  }
-
-  const t0 = performance.now()
-  const promises = []
+async function makeOpenAICall({ model, prompt, callback, version = 'v17' }) {
+  model = model || 'babbage:ft-personal:2404-v17-2023-04-25-12-42-32'
 
   const payload = {
+    prompt,
     model,
     temperature: 0,
     max_tokens: 1000,
     top_p: 1,
     frequency_penalty: 0,
     presence_penalty: 0,
-    stop: ['}]} END'],
+    stop: [`${COMPLETION_CLOSING} ${GPT_END_OF_COMPLETION}`],
   }
 
-  flatStructure.forEach((item) => {
-    if (!item.prompt) {
-      return
-    }
-
-    const promise = new Promise(async (resolve) => {
-      payload.prompt = item.prompt
-
-      fetch('https://api.openai.com/v1/completions', {
-        method: 'POST',
-        headers: {
-          Authorization: 'Bearer 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',
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(payload),
-      })
-        .then((response) => response.json())
-        .then((response) => {
-          if (!response?.choices) {
-            resolve()
-          }
-
-          const { choices = [] } = response
-          const { text = '' } = choices[0]
-          const treeResult = processOpenAIResponse(text, version)
-
-          resolve(treeResult)
-        })
-        .catch((error) => console.error(error))
-    })
-
-    promises.push(promise)
+  return fetch('https://api.openai.com/v1/completions', {
+    method: 'POST',
+    headers: {
+      Authorization: 'Bearer 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',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(payload),
   })
+    .then((response) => response.json())
+    .then(callback)
+    .catch((error) => console.error(error))
+}
 
-  const allResponses = await Promise.all(promises)
+async function callAPIForNestedStructure(flatStructure, model, version = 'v17') {
+  if (!flatStructure) {
+    return
+  }
+
+  const t0 = performance.now()
+  const response = await Promise.all(
+    flatStructure.map(async (item) =>
+      makeOpenAICall({ model, prompt: item.prompt, callback: processOpenAIResponse })
+    )
+  )
+  console.log(response)
 
   const t1 = performance.now()
   console.log(t1 - t0, 'milliseconds')
 
-  return allResponses
+  return response
 }
 
-function processOpenAIResponse(text, version) {
+async function processOpenAIResponse(response) {
+  if (!response?.choices) {
+    return
+  }
+
+  const { choices = [] } = response
+  let { text = '' } = choices[0]
+
   if (!text.length) {
     return
   }
 
-  text = text.trim() + '}]}'
-  let tree = parseStringToTree(text, version)
+  text = text.trim() + COMPLETION_CLOSING
+  let tree = parseStringToTree(text)
+
+  tree = await computeContainersRectAndOrientation(tree, true)
 
   return tree
-}
-
-function buildContainerDataAndOrientation(nodeList) {
-  // console.log({ text }, tree)
-  if (!nodeList?.length) {
-    return
-  }
-
-  try {
-    return nodeList.map((node) => {
-      const updatedNode = computeContainersRectAndOrientation(node)
-      buildAbsoluteOverlay(updatedNode)
-
-      return updatedNode
-    })
-  } catch (error) {
-    console.error(error)
-  }
-}
-
-async function reprocessUnalignedItems(nodeList) {
-  if (!nodeList?.length) {
-    return
-  }
-
-  try {
-    return nodeList.map((node) => {
-      const updatedNode = computeContainersRectAndOrientation(node)
-
-      return updatedNode
-    })
-  } catch (error) {
-    console.error(error)
-  }
 }
 
 function secondCheckForAlignment(nodeList) {}
@@ -197,10 +162,10 @@ function buildAbsoluteOverlay(node) {
     return
   }
 
-  let { rect, children, orientation } = node
+  let { rect, children, orientation, type } = node
 
-  if (children?.length && rect) {
-    addAbsOverlay(rect, orientation)
+  if ((children?.length || type === DIV_LABELS.SLOT) && rect) {
+    addAbsOverlay(rect, orientation, type)
   }
 
   if (children?.length) {
@@ -208,25 +173,31 @@ function buildAbsoluteOverlay(node) {
   }
 }
 
-function addAbsOverlay(rect, orientation) {
+function addAbsOverlay(rect, orientation, type) {
+  const { top, left, width, height } = rect
+
   const el = document.createElement('div')
   el.classList.add('nesting-overlay')
   el.style.cssText = `
     position: absolute;
     border: 4px dashed ${ORIENTATION_COLOR[orientation]};
-    top: ${rect.top}px;
-    left: ${rect.left}px;
-    width: ${rect.width}px;
-    height: ${rect.height}px;
+    top: ${top}px;
+    left: ${left}px;
+    width: ${width}px;
+    height: ${height}px;
     z-index: 99000;
     visibility: visible;
   `
+
+  if (type === DIV_LABELS.SLOT) {
+    el.style.border = '4px dashed yellow'
+  }
 
   const overlayContainer = document.getElementById('nesting-overlay-container')
   overlayContainer.appendChild(el)
 }
 
-function parseStringToTree(string, version = 'v14') {
+function parseStringToTree(string) {
   const preparedString = string
     .replace(/{/g, '{"')
     .replace(/:/g, '":"')
@@ -280,16 +251,21 @@ function formatTree(tree = {}) {
 }
 
 function rebuildPrompt(node = {}, onlyOneLevel = true, level = 0) {
-  const { children, rect, type: elType } = node
+  const { children, rect, type } = node
   const rectData = rect ? getRectData(rect) : ''
 
-  let result = elType !== DIV_LABELS.DIV && rect ? `[${elType} ${rectData}]` : NO_DATA
+  if (!rect) {
+    return NO_DATA
+  }
+
+  const elType = type === DIV_LABELS.DIV ? DIV_LABELS.SLOT : type
+  let result = level > 0 ? `{type:${elType},${rectData}}` : NO_DATA
 
   if (!children?.length) {
     return result
   }
 
-  if (elType !== DIV_LABELS.DIV && elType !== CONTENT_TAG_LABEL.A) {
+  if (type !== DIV_LABELS.DIV && type !== CONTENT_TAG_LABEL.A) {
     return result
   }
 
@@ -305,19 +281,42 @@ function rebuildPrompt(node = {}, onlyOneLevel = true, level = 0) {
   return result + childrenData
 }
 
-function computeContainersRectAndOrientation(node = {}) {
+async function computeContainersRectAndOrientation(node = {}, rootLevel = true) {
   let { children } = node
 
   if (children?.length) {
-    const childrenRects = children.map(computeContainersRectAndOrientation)
+    children = await Promise.all(children.map(computeContainersRectAndOrientation))
 
-    const childrenCoord = getChildrenCoordinates(childrenRects)
+    const childrenCoord = getChildrenCoordinates(children)
 
     const parentCoordinates = getParentCoordinates(childrenCoord, node)
     const orientation = children?.length > 1 ? getOrientationBasedOnRects(childrenCoord) : null
 
+    node.rect = parentCoordinates
+    node.orientation = orientation
+
     if (orientation && orientation === ORIENTATION.NOT_ALIGNED) {
-      console.log('NOT ALIGNED', node)
+      // console.log('NOT ALIGNED', node)
+      // Reprocess the API call, 2 times - for this node, and if needed,
+      // TODO: reprocess it's parent too.
+
+      let prompt = rebuildPrompt(node)
+      // console.log(prompt)
+
+      if (prompt && !retried_prompts.includes(prompt)) {
+        retried_prompts.push(prompt)
+
+        prompt += ` ${GPT_END_OF_PROMPT}`
+        // TODO: Break out of the infinite loop
+        const newNode = await makeOpenAICall({ prompt, callback: processOpenAIResponse })
+        console.log(node, newNode)
+        const { orientation: newOrientation } = newNode
+
+        if (newOrientation && newOrientation !== ORIENTATION.NOT_ALIGNED) {
+          // TODO: merge the new node with the old one.
+          node = newNode
+        }
+      }
     }
 
     // In checking the gaps between the children, we can identify if the nesting was done correctly
@@ -352,9 +351,10 @@ function computeContainersRectAndOrientation(node = {}) {
     // if (flexProps) {
     //   node.flexProps = flexProps
     // }
+  }
 
-    node.rect = parentCoordinates
-    node.orientation = orientation
+  if (rootLevel) {
+    buildAbsoluteOverlay(node)
   }
 
   return node
