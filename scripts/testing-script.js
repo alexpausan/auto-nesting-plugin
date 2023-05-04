@@ -173,6 +173,40 @@ function buildAbsoluteOverlay(node) {
   }
 }
 
+function toggleLoadingOverlay(rect) {
+  const { top, left, width, height } = rect
+  const id = `loading-${top}-${left}-${width}-${height}`
+
+  const loadingOverlay = document.getElementById(id)
+
+  if (loadingOverlay) {
+    loadingOverlay.remove()
+    return
+  }
+
+  const el = document.createElement('div')
+
+  el.id = id
+  el.style.cssText = `
+    position: absolute;
+    top: ${top}px;
+    left: ${left}px;
+    width: ${width}px;
+    height: ${height}px;
+    z-index: 99000;
+    visibility: visible;
+    background-color: rgba(255, 255, 255, 0.85);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 36px;
+  `
+  el.innerHTML = `Loading...`
+
+  const overlayContainer = document.getElementById('nesting-overlay-container')
+  overlayContainer.appendChild(el)
+}
+
 function addAbsOverlay(rect, orientation, type) {
   const { top, left, width, height } = rect
 
@@ -281,7 +315,7 @@ function rebuildPrompt(node = {}, onlyOneLevel = true, level = 0) {
   return result + childrenData
 }
 
-async function computeContainersRectAndOrientation(node = {}, rootLevel = true) {
+async function computeContainersRectAndOrientation(node = {}, rootLevel = false) {
   let { children } = node
 
   if (children?.length) {
@@ -305,16 +339,19 @@ async function computeContainersRectAndOrientation(node = {}, rootLevel = true) 
 
       if (prompt && !retried_prompts.includes(prompt)) {
         retried_prompts.push(prompt)
-
         prompt += ` ${GPT_END_OF_PROMPT}`
-        // TODO: Break out of the infinite loop
+
+        toggleLoadingOverlay(parentCoordinates)
         const newNode = await makeOpenAICall({ prompt, callback: processOpenAIResponse })
+        toggleLoadingOverlay(parentCoordinates)
+
         console.log(node, newNode)
         const { orientation: newOrientation } = newNode
 
         if (newOrientation && newOrientation !== ORIENTATION.NOT_ALIGNED) {
           // TODO: merge the new node with the old one.
           node = newNode
+          return node
         }
       }
     }
@@ -353,7 +390,7 @@ async function computeContainersRectAndOrientation(node = {}, rootLevel = true) 
     // }
   }
 
-  if (rootLevel) {
+  if (rootLevel === true) {
     buildAbsoluteOverlay(node)
   }
 

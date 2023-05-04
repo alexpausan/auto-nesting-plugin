@@ -20,12 +20,13 @@ async function buildResponsiveDesign(props) {
     if (reprocess) {
       processedItems = []
       for (item of rootLevelItems) {
-        buildAbsoluteOverlay(item)
+        item = computeContainersRectAndOrientation(item, true)
+        // buildAbsoluteOverlay(item)
         processedItems.push(item)
       }
 
       for (item of slotItems) {
-        buildAbsoluteOverlay(item)
+        item = computeContainersRectAndOrientation(item, true)
         processedItems.push(item)
       }
     }
